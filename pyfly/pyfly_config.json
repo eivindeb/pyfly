@@ -1,0 +1,258 @@
+{
+  "dt": 0.01,
+  "rho": 1.2250,
+  "g": 9.81,
+  "wind_magnitude_min": 0,
+  "wind_magnitude_max": 0,
+  "turbulence": false,
+  "turbulence_intensity": "light",
+  "variables": [
+    {
+      "name": "roll",
+      "convert_to_radians": true,
+      "init_min": -30,
+      "init_max": 30,
+      "unit": "degrees",
+      "wrap": true,
+      "label": "$\\phi$"
+    },
+    {
+      "name": "pitch",
+      "convert_to_radians": true,
+      "unit": "degrees",
+      "init_min": -30,
+      "init_max": 30,
+      "label": "$\\theta$"
+    },
+    {
+      "name": "yaw",
+      "convert_to_radians": true,
+      "unit": "degrees",
+      "init_min": -30,
+      "init_max": 30,
+      "wrap": true,
+      "label": "$\\psi$"
+    },
+    {
+      "name": "omega_p",
+      "init_min": -40,
+      "init_max": 40,
+      "constraint_min": -180,
+      "constraint_max": 180,
+      "convert_to_radians": true,
+      "unit": "degrees/s",
+      "label": "p"
+    },
+    {
+      "name": "omega_q",
+      "init_min": -40,
+      "init_max": 40,
+      "constraint_min": -180,
+      "constraint_max": 180,
+      "convert_to_radians": true,
+      "unit": "degrees/s",
+      "label": "q"
+    },
+    {
+      "name": "omega_r",
+      "init_min": -40,
+      "init_max": 40,
+      "constraint_min": -180,
+      "constraint_max": 180,
+      "convert_to_radians": true,
+      "unit": "degrees/s",
+      "label": "r"
+    },
+    {
+      "name": "position_n",
+      "init_min": -100,
+      "init_max": 100,
+      "unit": "m",
+      "label": "North"
+    },
+    {
+      "name": "position_e",
+      "init_min": -100,
+      "init_max": 100,
+      "unit": "m",
+      "label": "East"
+    },
+    {
+      "name": "position_d",
+      "init_min":  0,
+      "init_max": 0,
+      "unit": "m",
+      "label": "Down"
+    },
+    {
+      "name": "velocity_u",
+      "init_min": 13,
+      "init_max": 22,
+      "unit": "m/s",
+      "label": "u"
+    },
+    {
+      "name": "velocity_v",
+      "init_min": -5,
+      "init_max": 5,
+      "unit": "m/s",
+      "label": "v"
+    },
+    {
+      "name": "velocity_w",
+      "init_min": -5,
+      "init_max": 5,
+      "unit": "m/s",
+      "label": "w"
+    },
+    {
+      "name": "alpha",
+      "unit": "degrees",
+      "label": "$\\alpha$"
+    },
+    {
+      "name": "beta",
+      "convert_to_radians": true,
+      "unit": "degrees",
+      "label": "$\\beta$"
+    },
+    {
+      "name": "Va",
+      "value_min": 1e-6,
+      "unit": "m/s",
+      "label": "$V_a$"
+    },
+    {
+      "name": "wind_n",
+      "init_min": 8,
+      "init_max": 8,
+      "unit": "m/s",
+      "label": "North"
+    },
+    {
+      "name": "wind_e",
+      "init_min": 8,
+      "init_max": 8,
+      "unit": "m/s",
+      "label": "East"
+    },
+    {
+      "name": "wind_d",
+      "init_min": 8,
+      "init_max": 8,
+      "unit": "m/s",
+      "label": "Down"
+    },
+    {
+      "name": "elevon_left",
+      "value_min": -30,
+      "init_min": 0,
+      "init_max": 0,
+      "value_max": 30,
+      "convert_to_radians": true,
+      "order": 2,
+      "dot_max": 3.4907,
+      "omega_0": 100,
+      "zeta": 1.71,
+      "disabled": false,
+      "unit": "%",
+      "label": "elevon_left"
+    },
+    {
+      "name": "elevon_right",
+      "value_min": -30,
+      "init_min": 0,
+      "init_max": 0,
+      "value_max": 30,
+      "convert_to_radians": true,
+      "order": 2,
+      "dot_max": 3.4907,
+      "omega_0": 100,
+      "zeta": 1.71,
+      "disabled": false,
+      "unit": "%",
+      "label": "elevon_right"
+    },
+    {
+      "name": "elevator",
+      "value_min": -30,
+      "init_min": 0,
+      "init_max": 0,
+      "value_max": 35,
+      "convert_to_radians": true,
+      "order": 2,
+      "dot_max": 3.4907,
+      "omega_0": 100,
+      "zeta": 1.71,
+      "disabled": true,
+      "unit": "%",
+      "label": "elevator"
+    },
+    {
+      "name": "aileron",
+      "value_min": -30,
+      "init_min": 0,
+      "init_max": 0,
+      "value_max": 35,
+      "convert_to_radians": true,
+      "order": 2,
+      "dot_max": 3.4907,
+      "omega_0": 100,
+      "zeta": 1.71,
+      "disabled": true,
+      "unit": "%",
+      "label": "aileron"
+},
+    {
+      "name": "rudder",
+      "dot_max": 3.4907,
+      "convert_to_radians": true,
+      "order": 2,
+      "omega_0": 100,
+      "zeta": 1.71,
+      "disabled": true,
+      "unit": "%",
+      "label": "rudder"
+    },
+    {
+      "name": "throttle",
+      "value_min": 0,
+      "value_max": 1,
+      "init_min": 0,
+      "init_max": 0,
+      "order": 1,
+      "tau": 0.2,
+      "unit": "%",
+      "label": "throttle"
+    }
+  ],
+  "plots": [
+    {
+      "title": "Roll ($\\phi$) and Pitch ($\\theta$)",
+      "x_unit": "seconds",
+      "variables": ["roll", "pitch"]
+    },
+    {
+      "title": "Angular rates ($\\omega$)",
+      "x_unit": "seconds",
+      "variables": ["omega_p", "omega_q", "omega_r"]
+    },
+    {
+      "title": "Angle of attack ($\\alpha$), sideslip angle ($\\beta$) and airspeed ($V_a$)",
+      "x_unit": "seconds",
+      "variables": ["alpha", "beta", "Va"]
+    },
+    {
+      "title": "Control States",
+      "x_unit": "seconds",
+      "variables": ["elevator", "aileron", "throttle"],
+      "plot_quantity": "value"
+    },
+    {
+      "title": "Control commands",
+      "x_unit": "seconds",
+      "variables": ["elevator", "aileron", "throttle"],
+      "plot_quantity": "command"
+    }
+  ]
+}
