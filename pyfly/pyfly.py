@@ -7,7 +7,6 @@ from os import remove
 import json
 import matplotlib.pyplot as plt
 import matplotlib.gridspec
-from dryden import DrydenGustModel
 
 
 class ConstraintException(Exception):
@@ -754,7 +753,7 @@ class PyFly:
 
         _, parameter_extension = osp.splitext(parameter_path)
         if parameter_extension == ".mat":
-            self.params = scipy.io.loadmat("x8_param.mat", squeeze_me=True)
+            self.params = scipy.io.loadmat(parameter_path, squeeze_me=True)
         elif parameter_extension == ".json":
             with open(parameter_path) as param_file:
                 self.params = json.load(param_file)
@@ -1273,6 +1272,7 @@ class PyFly:
 
 
 if __name__ == "__main__":
+    from dryden import DrydenGustModel
     from pid_controller import PIDController
 
     pfly = PyFly("pyfly_config.json", "x8param.mat")
@@ -1296,3 +1296,5 @@ if __name__ == "__main__":
             break
 
     pfly.render()
+else:
+    from .dryden import DrydenGustModel
