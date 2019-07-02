@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 setup(
     name='pyfly',
@@ -12,7 +12,8 @@ setup(
     license='MIT',
     long_description_content_type='text/markdown',
     long_description=open('README.md').read(),
-    install_requires=["cycler==0.10.0",
+    install_requires=[
+        "cycler==0.10.0",
         "kiwisolver==1.1.0",
         "matplotlib==3.1.0",
         "numpy==1.16.4",

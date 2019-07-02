@@ -734,8 +734,8 @@ class PyFly:
                           "aileron", "Va"]
 
     def __init__(self,
-                 config_path=osp.join(__file__, "pyfly_config.json"),
-                 parameter_path=osp.join(__file__, "x8_param.mat"),
+                 config_path=osp.join(osp.dirname(__file__), "pyfly_config.json"),
+                 parameter_path=osp.join(osp.dirname(__file__), "x8_param.mat"),
                  config_kw=None):
         """
         A flight simulator for fixed wing aircraft with configurable initial conditions, constraints and turbulence
