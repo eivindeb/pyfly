@@ -877,7 +877,7 @@ class PyFly:
 
         self.state["attitude"].reset(Theta)
 
-    def render(self, mode="plot", close=False, viewer=None, targets=None):
+    def render(self, mode="plot", close=False, viewer=None, targets=None, block=False):
         """
         Visualize history of simulator states.
 
@@ -904,7 +904,7 @@ class PyFly:
                     p.plot(fig=sub_fig)
 
             if viewer is None:
-                plt.show(block=False)
+                plt.show(block=block)
             if close:
                 for p in self.plots:
                     p.close()
@@ -1295,6 +1295,6 @@ if __name__ == "__main__":
         if not success:
             break
 
-    pfly.render()
+    pfly.render(block=True)
 else:
     from .dryden import DrydenGustModel

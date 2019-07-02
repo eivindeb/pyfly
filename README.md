@@ -21,7 +21,7 @@ Newtonian flat-plate-theory, in an effort to extend model-validity in the state 
 from pyfly import PyFly
 from pid_controller import PIDController
 
-sim = PyFly("pyfly_config.json", "x8param.mat")
+sim = PyFly("pyfly_config.json", "x8_param.mat")
 sim.seed(0)
 
 sim.reset(state={"roll": -0.5, "pitch": 0})
@@ -43,7 +43,7 @@ for step_i in range(500):
     if not success:
         break
 
-sim.render()
+sim.render(block=True)
 ```
 
 Rendering this scenario produces:
