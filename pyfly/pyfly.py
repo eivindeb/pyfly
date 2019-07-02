@@ -733,7 +733,10 @@ class PyFly:
                           "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w", "elevator", "throttle",
                           "aileron", "Va"]
 
-    def __init__(self, config_path, parameter_path, config_kw=None):
+    def __init__(self,
+                 config_path=osp.join(__file__, "pyfly_config.json"),
+                 parameter_path=osp.join(__file__, "x8_param.mat"),
+                 config_kw=None):
         """
         A flight simulator for fixed wing aircraft with configurable initial conditions, constraints and turbulence
         conditions
