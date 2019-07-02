@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 with open('requirements.txt') as f:
     requirements = f.read().splitlines()
@@ -10,7 +10,7 @@ setup(
     author="Eivind Bøhn",
     author_email="eivind.bohn@gmail.com",
     description="Fixed-Wing Flight Simulator",
-    py_modules=['pyflight',],
+    packages=find_packages(),
     license='MIT',
     long_description_content_type='text/markdown',
     long_description=open('README.md').read(),
