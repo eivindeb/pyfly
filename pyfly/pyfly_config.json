@@ -148,30 +148,28 @@
       "value_min": -30,
       "init_min": 0,
       "init_max": 0,
-      "value_max": 30,
+      "value_max": 35,
       "convert_to_radians": true,
       "order": 2,
       "dot_max": 3.4907,
       "omega_0": 100,
       "zeta": 1.71,
-      "disabled": false,
       "unit": "%",
-      "label": "elevon_left"
+      "label": "elevon_l"
     },
     {
       "name": "elevon_right",
       "value_min": -30,
       "init_min": 0,
       "init_max": 0,
-      "value_max": 30,
+      "value_max": 35,
       "convert_to_radians": true,
       "order": 2,
       "dot_max": 3.4907,
       "omega_0": 100,
       "zeta": 1.71,
-      "disabled": false,
       "unit": "%",
-      "label": "elevon_right"
+      "label": "elevon_r"
     },
     {
       "name": "elevator",
@@ -226,6 +224,10 @@
       "label": "throttle"
     }
   ],
+  "actuation": {
+    "dynamics": ["elevon_right", "elevon_left", "throttle"],
+    "inputs": ["elevator", "aileron", "throttle"]
+  },
   "plots": [
     {
       "title": "Roll ($\\phi$) and Pitch ($\\theta$)",

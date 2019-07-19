@@ -205,7 +205,7 @@ class ControlVariable(Variable):
         :param omega_0: (float) undamped natural frequency of second order transfer functions
         :param zeta: (float) damping factor of second order transfer function
         :param dot_max: (float) constraint on magnitude of derivative of second order transfer function
-        :param disabled: (float) if actuator is disabled for airfract
+        :param disabled: (bool) if actuator is disabled for aircraft, e.g. aircraft has no rudder
         :param kwargs: (dict) keyword arguments for Variable class
         """
         assert (disabled or (order == 1 or order == 2))
@@ -317,36 +317,64 @@ class ControlVariable(Variable):
 
 
 class Actuation:
-    def __init__(self):
+    def __init__(self, model_inputs, actuator_inputs, dynamics):
+        """
+        PyFly actuation object, responsible for verifying validity of configured actuator model, processing inputs and
+        actuator dynamics.
+
+        :param model_inputs: ([string]) the states used by PyFly as inputs to dynamics
+        :param actuator_inputs: ([string]) the user configured actuator input states
+        :param dynamics: ([string]) the user configured actuator states to simulate dynamics for
+        """
         self.states = {}
         self.coefficients = [[np.array([]) for _ in range(3)] for __ in range(2)]
-        self.elevons = False
-        self.not_disabled = []
+        self.elevon_dynamics = False
+        self.dynamics = dynamics
+        self.inputs = actuator_inputs
+        self.model_inputs = model_inputs
+        self.input_indices = {s: i for i, s in enumerate(actuator_inputs)}
+        self.dynamics_indices = {s: i for i, s in enumerate(dynamics)}
 
     def set_states(self, values, save=True):
-        for i, state in enumerate(self.not_disabled):
-            self.states[state].set_value((values[i], values[len(self.not_disabled) + i]), save=save)
+        """
+        Set values of actuator states.
 
-        if self.elevons:
-            aileron = -0.5 * self.states["elevon_right"].value + 0.5 * self.states["elevon_left"].value
-            elevator = 0.5 * self.states["elevon_right"].value + 0.5 * self.states["elevon_left"].value
+        :param values: ([float]) list of state values + list of state derivatives
+        :param save: (bool) whether to commit values to state history
+        :return:
+        """
+        for i, state in enumerate(self.dynamics):
+            self.states[state].set_value((values[i], values[len(self.dynamics) + i]), save=save)
+
+        # Simulator model operates on elevator and aileron angles, if aircraft has elevon dynamics need to map
+        if self.elevon_dynamics:
+            elevator, aileron = self._map_elevon_to_elevail(er=self.states["elevon_right"].value,
+                                                            el=self.states["elevon_left"].value)
 
             self.states["aileron"].set_value((aileron, 0), save=save)
             self.states["elevator"].set_value((elevator, 0), save=save)
 
     def add_state(self, state):
-        if "elevon" in state.name:
-            self.elevons = True
+        """
+        Add actuator state, and configure dynamics if state has dynamics.
+
+        :param state: (ControlVariable) actuator state
+        :return:
+        """
         self.states[state.name] = state
-        if not state.disabled:
-            self.not_disabled.append(state.name)
+        if state.name in self.dynamics:
             for i in range(2):
                 for j in range(3):
                     self.coefficients[i][j] = np.append(self.coefficients[i][j], state.coefs[i][j])
 
     def get_values(self):
-        return [self.states[state].value for state in self.not_disabled] + [self.states[state].dot for state in
-                                                                            self.not_disabled]
+        """
+        Get state values and derivatives for states in actuator dynamics.
+
+        :return: ([float]) list of state values + list of state derivatives
+        """
+        return [self.states[state].value for state in self.dynamics] + [self.states[state].dot for state in
+                                                                            self.dynamics]
 
     def rhs(self, setpoints):
         """
@@ -356,65 +384,87 @@ class Actuation:
         :param setpoints: ([float]) setpoint for actuators
         :return: ([float]) right hand side of actuator differential equation.
         """
-        setpoints = self._get_setpoints(setpoints)
+        states = [self.states[state].value for state in self.dynamics]
+        dots = [self.states[state].dot for state in self.dynamics]
+        dot = np.multiply(states,
+                          self.coefficients[0][0]) + np.multiply(setpoints,
+                                                                 self.coefficients[0][2]) + np.multiply(dots, self.coefficients[0][1])
+        ddot = np.multiply(states,
+                           self.coefficients[1][0]) + np.multiply(setpoints,
+                                                                  self.coefficients[1][2]) + np.multiply(dots, self.coefficients[1][1])
 
-        states = [self.states[state].value for state in self.not_disabled]
-        dots = [self.states[state].dot for state in self.not_disabled]
-        dot = np.multiply(states, self.coefficients[0][0]) + np.multiply(setpoints,
-                                                                         self.coefficients[0][2]) + np.multiply(dots,
-                                                                                                                self.coefficients[
-                                                                                                                    0][
-                                                                                                                    1])
-        ddot = np.multiply(states, self.coefficients[1][0]) + np.multiply(setpoints,
-                                                                          self.coefficients[1][2]) + np.multiply(dots,
-                                                                                                                 self.coefficients[
-                                                                                                                     1][
-                                                                                                                     1])
         return np.concatenate((dot, ddot))
 
-    def _get_setpoints(self, setpoints):
-        res = []
-        if self.elevons:
-            res.append(setpoints[0] - setpoints[1])
-            res.append(setpoints[1] + setpoints[0])
-        else:
-            res = setpoints[:2]
-
-        for i, state in enumerate(["rudder", "throttle"]):
-            if state in self.not_disabled:
-                res.append(setpoints[i + 2])
-
-        return res
-
     def set_and_constrain_commands(self, commands):
-        command_states = ["elevator", "aileron", "rudder", "throttle"]
-        if self.elevons:
-            elevon_commands = self._get_setpoints(commands)
-            self.states["elevon_right"].set_command(elevon_commands[0])
-            self.states["elevon_left"].set_command(elevon_commands[1])
-            commands[0] = (self.states["elevon_right"].command + self.states["elevon_left"].command) / 2
-            commands[1] = (self.states["elevon_left"].command - self.states["elevon_right"].command) / 2
-        for i, state in enumerate(command_states):
-            self.states[state].set_command(commands[i])
-            commands[i] = self.states[state].command
+        """
+        Take  raw actuator commands and constrain them according to the state limits and constraints, and update state
+        values and history.
+
+        :param commands: ([float]) raw commands
+        :return: ([float]) constrained commands
+        """
+        if self.elevon_dynamics and "elevator" and "aileron" in self.inputs:
+            elev_c, ail_c = commands[self.input_indices["elevator"]], commands[self.input_indices["aileron"]]
+            elevon_r_c, elevon_l_c = self._map_elevail_to_elevon(elev=elev_c, ail=ail_c)
+            commands[self.dynamics_indices["elevon_right"]] = elevon_r_c
+            commands[self.dynamics_indices["elevon_left"]] = elevon_l_c
+
+        for state in self.dynamics:
+            state_c = commands[self.input_indices[state]]
+            self.states[state].set_command(state_c)
+            commands[self.input_indices[state]] = self.states[state].command
+
+        # The elevator and aileron commands constrained by limitatons on physical elevons
+        if self.elevon_dynamics:
+            elev_c, ail_c = self._map_elevon_to_elevail(er=commands[self.dynamics_indices["elevon_right"]],
+                                                        el=commands[self.dynamics_indices["elevon_left"]])
+            self.states["elevator"].set_command(elev_c)
+            self.states["aileron"].set_command(ail_c)
+            set_unused_inputs = ["elevator", "aileron"]
+        else:
+            set_unused_inputs = []
+
+        # TODO: is this necessary or even best? If disabled None command is better than 0?
+        #for state in [s for s in self.model_inputs if s not in (self.inputs + set_unused_inputs)]:
+        #    self.states[state].set_command(0)
 
         return commands
 
     def finalize(self):
-        if self.elevons:
+        """
+        Assert valid configuration of actuator dynamics and set actuator state limits if applicable.
+        """
+        if "elevon_left" or "elevon_right" in self.dynamics:
+            assert("elevon_left" in self.dynamics and "elevon_right" in self.dynamics and not ("aileron" in self.dynamics
+                   or "elevator" in self.dynamics))
             assert ("elevon_left" in self.states and "elevon_right" in self.states)
-            self.states["elevator"].value_min = max(self.states["elevon_right"].value_min,
-                                                    self.states["elevon_left"].value_min)
-            self.states["elevator"].value_max = min(self.states["elevon_right"].value_max,
-                                                    self.states["elevon_left"].value_max)
+            self.elevon_dynamics = True
 
-            self.states["aileron"].value_min = (self.states["elevon_left"].value_min - self.states[
-                "elevon_right"].value_max) / 2
-            self.states["aileron"].value_max = (self.states["elevon_left"].value_max - self.states[
-                "elevon_right"].value_min) / 2
+            # Set elevator and aileron limits from elevon limits for plotting purposes etc.
+            if "elevator" in self.states:
+                elev_min, _ = self._map_elevon_to_elevail(er=self.states["elevon_right"].value_min,
+                                                          el=self.states["elevon_left"].value_min)
+                elev_max, _ = self._map_elevon_to_elevail(er=self.states["elevon_right"].value_max,
+                                                          el=self.states["elevon_left"].value_max)
+                self.states["elevator"].value_min = elev_min
+                self.states["elevator"].value_max = elev_max
+            if "aileron" in self.states:
+                _, ail_min = self._map_elevon_to_elevail(er=self.states["elevon_right"].value_max,
+                                                         el=self.states["elevon_left"].value_min)
+                _, ail_max = self._map_elevon_to_elevail(er=self.states["elevon_right"].value_min,
+                                                         el=self.states["elevon_left"].value_max)
+                self.states["aileron"].value_min = ail_min
+                self.states["aileron"].value_max = ail_max
 
-        self.not_disabled.sort(
-            key=lambda x: ["elevon_right", "elevon_left", "elevator", "aileron", "rudder", "throttle"].index(x))
+    def _map_elevail_to_elevon(self, elev, ail):
+        er = -1 * ail + elev
+        el = ail + elev
+        return er, el
+
+    def _map_elevon_to_elevail(self, er, el):
+        ail = (-er + el) / 2
+        elev = (er + el) / 2
+        return elev, ail
 
 
 class AttitudeQuaternion:
@@ -729,8 +779,7 @@ class Plot:
 
 class PyFly:
     REQUIRED_VARIABLES = ["alpha", "beta", "roll", "pitch", "yaw", "omega_p", "omega_q", "omega_r", "position_n",
-                          "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w", "elevator", "throttle",
-                          "aileron", "Va"]
+                          "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w", "throttle", "Va"]
 
     def __init__(self,
                  config_path=osp.join(osp.dirname(__file__), "pyfly_config.json"),
@@ -769,7 +818,7 @@ class PyFly:
         self.state = {}
         self.attitude_states = ["roll", "pitch", "yaw"]
         self.actuator_states = ["elevator", "aileron", "rudder", "throttle", "elevon_left", "elevon_right"]
-        self.inputs = ["elevator", "aileron", "rudder", "throttle"]
+        self.model_inputs = ["elevator", "aileron", "rudder", "throttle"]
 
         if not set(self.REQUIRED_VARIABLES).issubset([v["name"] for v in self.cfg["variables"]]):
             raise Exception("Missing required variables in config file: {}".format(
@@ -785,7 +834,9 @@ class PyFly:
         self.state["attitude"] = AttitudeQuaternion()
         self.attitude_states_with_constraints = []
 
-        self.actuation = Actuation()
+        self.actuation = Actuation(model_inputs=self.model_inputs,
+                                   actuator_inputs=self.cfg["actuation"]["inputs"],
+                                   dynamics=self.cfg["actuation"]["dynamics"])
 
         for v in self.cfg["variables"]:
             if v["name"] in self.attitude_states and any([v.get(attribute, None) is not None for attribute in
@@ -800,6 +851,11 @@ class PyFly:
 
             if "wind" in v["name"]:
                 self.wind.components.append(self.state[v["name"]])
+
+        for state in self.model_inputs:
+            if state not in self.state:
+                self.state[state] = ControlVariable(name=state, disabled=True)
+                self.actuation.add_state(self.state[state], dynamics=False, input=False)
 
         self.actuation.finalize()
         self.plots = []
@@ -1000,7 +1056,7 @@ class PyFly:
 
         omega = self.get_states_vector(["omega_p", "omega_q", "omega_r"])
         vel = np.array(self.get_states_vector(["velocity_u", "velocity_v", "velocity_w"]))
-        u_states = self.get_states_vector(["elevator", "aileron", "rudder", "throttle"])
+        u_states = self.get_states_vector(self.model_inputs)
 
         f, tau = self._forces(attitude, omega, vel, u_states)
 
@@ -1282,14 +1338,13 @@ if __name__ == "__main__":
     pid.set_reference(np.radians(30), np.radians(-5), 22)
 
     pfly.reset()
-    for i in range(100):
+    for i in range(1000):
         phi = pfly.state["roll"].value
         theta = pfly.state["pitch"].value
         Va = pfly.state["Va"].value
         omega = [pfly.state["omega_p"].value, pfly.state["omega_q"].value, pfly.state["omega_r"].value]
 
         action = pid.get_action(phi, theta, Va, omega)
-        action = [action[0], action[1], 0, action[2]]
         success = pfly.step(action)
 
         if not success:
