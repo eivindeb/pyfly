@@ -782,7 +782,7 @@ class PyFly:
                           "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w", "throttle", "Va"]
 
     def __init__(self,
-                 config_path=osp.join(osp.dirname(__file__), "pyfly_config.json"),
+                 config_path=osp.join(osp.dirname(__file__), "pyfly_config_dev.json"),
                  parameter_path=osp.join(osp.dirname(__file__), "x8_param.mat"),
                  config_kw=None):
         """
@@ -1331,7 +1331,7 @@ if __name__ == "__main__":
     from dryden import DrydenGustModel
     from pid_controller import PIDController
 
-    pfly = PyFly("pyfly_config.json", "x8_param.mat")
+    pfly = PyFly("pyfly_config_dev.json", "x8_param.mat")
     pfly.seed(0)
 
     pid = PIDController(pfly.dt)
