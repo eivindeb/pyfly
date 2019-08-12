@@ -54,6 +54,7 @@ class Variable:
         self.label = label if label is not None else self.name
         self.lines = {"self": None}
         self.target_lines = {"self": None}
+        self.target_bounds = {"self": None}
 
         self.np_random = None
         self.seed()
@@ -144,10 +145,16 @@ class Variable:
         x, y = self._get_plot_x_y_data()
         if "degrees" in y_unit:
             y = np.degrees(y)
-            target = np.degrees(target) if target is not None else None
-        elif y_unit == "%":
+            if target is not None:
+                target["data"] = np.degrees(target["data"])
+                if "bound" in target:
+                    target["bound"] = np.degrees(target["bound"])
+        elif y_unit == "%":  # TODO: scale positive according to positive limit and negative according to lowest minimum value
             y = linear_scaling(y, self.value_min, self.value_max, -100, 100)
-            target = linear_scaling(target, self.value_min, self.value_max, -100, 100) if target is not None else None
+            if target is not None:
+                target["data"] = linear_scaling(target["data"], self.value_min, self.value_max, -100, 100)
+                if "bound" in target:
+                    target["bound"] = linear_scaling(target["bound"], self.value_min, self.value_max, -100, 100)
         else:
             y = y
 
@@ -162,14 +169,25 @@ class Variable:
             self.lines[plot_id] = line
 
             if target is not None:
-                tar_line, = plot_object.plot(x, target, color=self.lines[plot_id].get_color(), linestyle="dashed",
+                tar_line, = plot_object.plot(x, target["data"], color=self.lines[plot_id].get_color(), linestyle="dashed",
                                              marker="x", markevery=0.2)
+
+                if "bound" in target:
+                    tar_bound = plot_object.fill_between(np.arange(target["bound"].shape[0]),
+                                                         target["data"] + target["bound"],
+                                                         target["data"] - target["bound"], alpha=0.15,
+                                                         facecolor=self.lines[plot_id].get_color()
+                                                        )
+                    self.target_bounds[plot_id] = tar_bound
                 self.target_lines[plot_id] = tar_line
         else:
             self.lines[plot_id].set_data(x, y)
             if target is not None:
                 self.target_lines[plot_id].set_data(x, target)
-
+                if "bound" in target:  # TODO: fix this?
+                    self.target_bounds[plot_id].set_data(np.arange(target["bound"].shape[0]),
+                                                         target["data"] + target["bound"],
+                                                         target["data"] - target["bound"])
         if axis is None:
             for k, v in fig_kw.items():
                 getattr(plot_object, format(k))(v)
@@ -183,6 +201,7 @@ class Variable:
         """
         self.lines[plot_id] = None
         self.target_lines[plot_id] = None
+        self.target_bounds[plot_id] = None
 
     def _get_plot_x_y_data(self):
         """
