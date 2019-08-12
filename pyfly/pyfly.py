@@ -316,6 +316,47 @@ class ControlVariable(Variable):
             return []
 
 
+class EnergyVariable(Variable):
+    def __init__(self, mass=None, inertia_matrix=None, gravity=None, **kwargs):
+        super().__init__(**kwargs)
+        self.required_variables = []
+        self.variables = {}
+        if self.name == "energy_potential" or self.name == "energy_total":
+            assert(mass is not None and gravity is not None)
+            self.mass = mass
+            self.gravity = gravity
+            self.required_variables.append("position_d")
+        if self.name == "energy_kinetic" or self.name == "energy_total":
+            assert (mass is not None and inertia_matrix is not None)
+            self.mass = mass
+            self.inertia_matrix = inertia_matrix
+            self.required_variables.extend(["Va", "omega_p", "omega_q", "omega_r"])
+        if self.name == "energy_kinetic_rotational":
+            assert(inertia_matrix is not None)
+            self.inertia_matrix = inertia_matrix
+            self.required_variables.extend(["omega_p", "omega_q", "omega_r"])
+        if self.name == "energy_kinetic_translational":
+            assert(mass is not None)
+            self.mass = mass
+            self.required_variables.append("Va")
+
+    def add_requirement(self, name, variable):
+        self.variables[name] = variable
+
+    def calculate_value(self):
+        val = 0
+        if self.name == "energy_potential" or self.name == "energy_total":
+            val += self.mass * self.gravity * (-self.variables["position_d"].value)
+        if self.name == "energy_kinetic_rotational" or self.name == "energy_kinetic" or self.name == "energy_total":
+            for i, axis in enumerate(["omega_p", "omega_q", "omega_r"]):
+                m_i = self.inertia_matrix[i, i]
+                val += 1 / 2 * m_i * self.variables[axis].value ** 2
+        if self.name == "energy_kinetic_translational" or self.name == "energy_kinetic" or self.name == "energy_total":
+            val += 1 / 2 * self.mass * self.variables["Va"].value ** 2
+
+        return val
+
+
 class Actuation:
     def __init__(self, model_inputs, actuator_inputs, dynamics):
         """
@@ -809,6 +850,26 @@ class PyFly:
         else:
             raise Exception("Unsupported parameter file extension.")
 
+        self.I = np.array([[self.params["Jx"], 0, -self.params["Jxz"]],
+                           [0, self.params["Jy"], 0, ],
+                           [-self.params["Jxz"], 0, self.params["Jz"]]
+                           ])
+
+        self.gammas = [self.I[0, 0] * self.I[2, 2] - self.I[0, 2] ** 2]
+        self.gammas.append((np.abs(self.I[0, 2]) * (self.I[0, 0] - self.I[1, 1] + self.I[2, 2])) / self.gammas[0])
+        self.gammas.append((self.I[2, 2] * (self.I[2, 2] - self.I[1, 1]) + self.I[0, 2] ** 2) / self.gammas[0])
+        self.gammas.append(self.I[2, 2] / self.gammas[0])
+        self.gammas.append(np.abs(self.I[0, 2]) / self.gammas[0])
+        self.gammas.append((self.I[2, 2] - self.I[0, 0]) / self.I[1, 1])
+        self.gammas.append(np.abs(self.I[0, 2]) / self.I[1, 1])
+        self.gammas.append(((self.I[0, 0] - self.I[1, 1]) * self.I[0, 0] + self.I[0, 2] ** 2) / self.gammas[0])
+        self.gammas.append(self.I[0, 0] / self.gammas[0])
+
+        self.params["C_prop"] = 0.248
+        self.params["k_motor"] = 37.42
+        self.params["k_Omega"] = 797.1268
+        self.params["k_T_P"] = 1.1871e-6
+
         with open(config_path) as config_file:
             self.cfg = json.load(config_file)
 
@@ -819,6 +880,7 @@ class PyFly:
         self.attitude_states = ["roll", "pitch", "yaw"]
         self.actuator_states = ["elevator", "aileron", "rudder", "throttle", "elevon_left", "elevon_right"]
         self.model_inputs = ["elevator", "aileron", "rudder", "throttle"]
+        self.energy_states = []
 
         if not set(self.REQUIRED_VARIABLES).issubset([v["name"] for v in self.cfg["variables"]]):
             raise Exception("Missing required variables in config file: {}".format(
@@ -846,6 +908,9 @@ class PyFly:
             if v["name"] in self.actuator_states:
                 self.state[v["name"]] = ControlVariable(**v)
                 self.actuation.add_state(self.state[v["name"]])
+            elif "energy" in v["name"]:
+                self.energy_states.append(v["name"])
+                self.state[v["name"]] = EnergyVariable(mass=self.params["mass"], inertia_matrix=self.I, gravity=self.g, **v)
             else:
                 self.state[v["name"]] = Variable(**v)
 
@@ -858,34 +923,21 @@ class PyFly:
                 self.actuation.add_state(self.state[state], dynamics=False, input=False)
 
         self.actuation.finalize()
+
+        for energy_state in self.energy_states:
+            for req_var_name in self.state[energy_state].required_variables:
+                self.state[energy_state].add_requirement(req_var_name, self.state[req_var_name])
+
+        # TODO: check that all plotted variables are declared in cfg.variables
         self.plots = []
         for i, p in enumerate(self.cfg["plots"]):
             vars = p.pop("variables")
             p["dt"] = self.dt
             p["id"] = i
             self.plots.append(Plot(**p))
+
             for v_name in vars:
                 self.plots[-1].add_variable(self.state[v_name])
-
-        self.I = np.array([[self.params["Jx"], 0, -self.params["Jxz"]],
-                           [0, self.params["Jy"], 0, ],
-                           [-self.params["Jxz"], 0, self.params["Jz"]]
-                           ])
-
-        self.gammas = [self.I[0, 0] * self.I[2, 2] - self.I[0, 2] ** 2]
-        self.gammas.append((np.abs(self.I[0, 2]) * (self.I[0, 0] - self.I[1, 1] + self.I[2, 2])) / self.gammas[0])
-        self.gammas.append((self.I[2, 2] * (self.I[2, 2] - self.I[1, 1]) + self.I[0, 2] ** 2) / self.gammas[0])
-        self.gammas.append(self.I[2, 2] / self.gammas[0])
-        self.gammas.append(np.abs(self.I[0, 2]) / self.gammas[0])
-        self.gammas.append((self.I[2, 2] - self.I[0, 0]) / self.I[1, 1])
-        self.gammas.append(np.abs(self.I[0, 2]) / self.I[1, 1])
-        self.gammas.append(((self.I[0, 0] - self.I[1, 1]) * self.I[0, 0] + self.I[0, 2] ** 2) / self.gammas[0])
-        self.gammas.append(self.I[0, 0] / self.gammas[0])
-
-        self.params["C_prop"] = 0.248
-        self.params["k_motor"] = 37.42
-        self.params["k_Omega"] = 797.1268
-        self.params["k_T_P"] = 1.1871e-6
 
         self.cur_sim_step = None
         self.viewer = None
@@ -910,7 +962,7 @@ class PyFly:
         self.cur_sim_step = 0
 
         for name, var in self.state.items():
-            if name in ["Va", "alpha", "beta", "attitude", "wind_n", "wind_e", "wind_d"]:
+            if name in ["Va", "alpha", "beta", "attitude"] or "wind" in name or "energy" in name:
                 continue
             var_init = state[name] if state is not None and name in state else None
             var.reset(value=var_init)
@@ -932,6 +984,9 @@ class PyFly:
         self.state["beta"].reset(beta)
 
         self.state["attitude"].reset(Theta)
+
+        for energy_state in self.energy_states:
+            self.state[energy_state].reset(self.state[energy_state].calculate_value())
 
     def render(self, mode="plot", close=False, viewer=None, targets=None, block=False):
         """
@@ -1001,6 +1056,9 @@ class PyFly:
             self.state["Va"].set_value(Va)
             self.state["alpha"].set_value(alpha)
             self.state["beta"].set_value(beta)
+
+            for energy_state in self.energy_states:
+                self.state[energy_state].set_value(self.state[energy_state].calculate_value(), save=True)
 
             self.wind.set_value(self.cur_sim_step)
         except ConstraintException as e:
