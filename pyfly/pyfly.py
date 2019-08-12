@@ -1290,7 +1290,7 @@ if __name__ == "__main__":
 
         action = pid.get_action(phi, theta, Va, omega)
         action = [action[0], action[1], 0, action[2]]
-        success = pfly.step(action)
+        success, step_info = pfly.step(action)
 
         if not success:
             break

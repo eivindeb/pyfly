@@ -38,7 +38,7 @@ for step_i in range(500):
     action = sim.get_action(phi, theta, Va, omega)
     # Simulator expects [elevator, aileron, rudder, throttle] while PID is adapted to X8 which lacks rudder.
     action = [action[0], action[1], 0, action[2]]  
-    success = sim.step(action)
+    success, step_info = sim.step(action)
 
     if not success:
         break
