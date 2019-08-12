@@ -51,7 +51,7 @@ class Variable:
         self.wrap = wrap
 
         self.unit = unit
-        self.label = label
+        self.label = label if label is not None else self.name
         self.lines = {"self": None}
         self.target_lines = {"self": None}
 
