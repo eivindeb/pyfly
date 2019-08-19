@@ -244,6 +244,8 @@ class ControlVariable(Variable):
         self.dot = None
         self.command = None
         self.disabled = disabled
+        if self.disabled:
+            self.value = 0
         self.plot_quantity = "value"
 
     def apply_conditions(self, values):
