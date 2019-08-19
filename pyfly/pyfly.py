@@ -517,6 +517,18 @@ class Actuation:
                 self.states["aileron"].value_min = ail_min
                 self.states["aileron"].value_max = ail_max
 
+    def reset(self, state_init=None):
+        for state in self.dynamics:
+            init = None
+            if state_init is not None and state in state_init:
+                init = state_init[state]
+            self.states[state].reset(value=init)
+
+        if self.elevon_dynamics:
+            elev, ail = self._map_elevon_to_elevail(er=self.states["elevon_right"].value, el=self.states["elevon_left"].value)
+            self.states["elevator"].reset(value=elev)
+            self.states["aileron"].reset(value=ail)
+
     def _map_elevail_to_elevon(self, elev, ail):
         er = -1 * ail + elev
         el = ail + elev
@@ -940,7 +952,7 @@ class PyFly:
         for state in self.model_inputs:
             if state not in self.state:
                 self.state[state] = ControlVariable(name=state, disabled=True)
-                self.actuation.add_state(self.state[state], dynamics=False, input=False)
+                self.actuation.add_state(self.state[state])
 
         self.actuation.finalize()
 
@@ -982,10 +994,12 @@ class PyFly:
         self.cur_sim_step = 0
 
         for name, var in self.state.items():
-            if name in ["Va", "alpha", "beta", "attitude"] or "wind" in name or "energy" in name:
+            if name in ["Va", "alpha", "beta", "attitude"] or "wind" in name or "energy" in name or isinstance(var, ControlVariable):
                 continue
             var_init = state[name] if state is not None and name in state else None
             var.reset(value=var_init)
+
+        self.actuation.reset(state)
 
         wind_init = None
         if state is not None:
