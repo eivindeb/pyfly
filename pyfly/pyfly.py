@@ -436,14 +436,16 @@ class Actuation:
         return [self.states[state].value for state in self.dynamics] + [self.states[state].dot for state in
                                                                             self.dynamics]
 
-    def rhs(self, setpoints):
+    def rhs(self, setpoints=None):
         """
         Right hand side of actuator differential equation.
 
-        :param t: (float) time of integration
-        :param setpoints: ([float]) setpoint for actuators
+        :param setpoints: ([float] or None) setpoints for actuators. If None, setpoints are set as the current command
+        of the dynamics variable
         :return: ([float]) right hand side of actuator differential equation.
         """
+        if setpoints is None:
+            setpoints = [self.states[state].command for state in self.dynamics]
         states = [self.states[state].value for state in self.dynamics]
         dots = [self.states[state].dot for state in self.dynamics]
         dot = np.multiply(states,
@@ -463,30 +465,29 @@ class Actuation:
         :param commands: ([float]) raw commands
         :return: ([float]) constrained commands
         """
+        dynamics_commands = {}
         if self.elevon_dynamics and "elevator" and "aileron" in self.inputs:
             elev_c, ail_c = commands[self.input_indices["elevator"]], commands[self.input_indices["aileron"]]
             elevon_r_c, elevon_l_c = self._map_elevail_to_elevon(elev=elev_c, ail=ail_c)
-            commands[self.dynamics_indices["elevon_right"]] = elevon_r_c
-            commands[self.dynamics_indices["elevon_left"]] = elevon_l_c
+            dynamics_commands = {"elevon_right": elevon_r_c, "elevon_left": elevon_l_c}
 
         for state in self.dynamics:
-            state_c = commands[self.input_indices[state]]
+            if state in self.input_indices:
+                state_c = commands[self.input_indices[state]]
+            else:  # Elevail inputs with elevon dynamics
+                state_c = dynamics_commands[state]
             self.states[state].set_command(state_c)
-            commands[self.input_indices[state]] = self.states[state].command
+            dynamics_commands[state] = self.states[state].command
 
         # The elevator and aileron commands constrained by limitatons on physical elevons
         if self.elevon_dynamics:
-            elev_c, ail_c = self._map_elevon_to_elevail(er=commands[self.dynamics_indices["elevon_right"]],
-                                                        el=commands[self.dynamics_indices["elevon_left"]])
+            elev_c, ail_c = self._map_elevon_to_elevail(er=dynamics_commands["elevon_right"],
+                                                        el=dynamics_commands["elevon_left"])
             self.states["elevator"].set_command(elev_c)
             self.states["aileron"].set_command(ail_c)
-            set_unused_inputs = ["elevator", "aileron"]
-        else:
-            set_unused_inputs = []
 
-        # TODO: is this necessary or even best? If disabled None command is better than 0?
-        #for state in [s for s in self.model_inputs if s not in (self.inputs + set_unused_inputs)]:
-        #    self.states[state].set_command(0)
+        for state, i in self.input_indices.items():
+            commands[i] = self.states[state].command
 
         return commands
 
@@ -494,7 +495,7 @@ class Actuation:
         """
         Assert valid configuration of actuator dynamics and set actuator state limits if applicable.
         """
-        if "elevon_left" or "elevon_right" in self.dynamics:
+        if "elevon_left" in self.dynamics or "elevon_right" in self.dynamics:
             assert("elevon_left" in self.dynamics and "elevon_right" in self.dynamics and not ("aileron" in self.dynamics
                    or "elevator" in self.dynamics))
             assert ("elevon_left" in self.states and "elevon_right" in self.states)
@@ -1064,7 +1065,7 @@ class PyFly:
         y0 = np.array(y0)
 
         try:
-            sol = scipy.integrate.solve_ivp(fun=lambda t, y: self._dynamics(t, y, control_inputs), t_span=(0, self.dt),
+            sol = scipy.integrate.solve_ivp(fun=lambda t, y: self._dynamics(t, y), t_span=(0, self.dt),
                                             y0=y0)
             self._set_states_from_ode_solution(sol.y[:, -1], save=True)
 
@@ -1116,7 +1117,7 @@ class PyFly:
 
         np.save(path, res)
 
-    def _dynamics(self, t, y, control_sp):
+    def _dynamics(self, t, y, control_sp=None):
         """
         Right hand side of dynamics differential equation.
 
