@@ -34,19 +34,25 @@ class Variable:
         :param label: (string) label given to state in plots
         :param wrap: (bool) whether to wrap state value in region [-pi, pi]
         """
+        assert init_min is not None or value_min is not None
+        assert init_max is not None or value_max is not None
+        self.value_min = value_min
+        self.value_max = value_max
+
+        self.init_min = init_min if init_min is not None else value_min
+        self.init_max = init_max if init_max is not None else value_max
+
+        self.constraint_min = constraint_min
+        self.constraint_max = constraint_max
+
+        if convert_to_radians:
+            for name, val in self.__dict__.items():
+                if val is not None:
+                    setattr(self, name, np.radians(val))
+
         self.name = name
 
         self.value = None
-        self.value_min = value_min if not convert_to_radians or value_min is None else np.deg2rad(value_min)
-        self.value_max = value_max if not convert_to_radians or value_max is None else np.deg2rad(value_max)
-
-        self.init_min = init_min if not convert_to_radians or init_min is None else np.deg2rad(init_min)
-        self.init_max = init_max if not convert_to_radians or init_max is None else np.deg2rad(init_max)
-
-        self.constraint_min = constraint_min if not convert_to_radians or constraint_min is None else np.deg2rad(
-            constraint_min)
-        self.constraint_max = constraint_max if not convert_to_radians or constraint_max is None else np.deg2rad(
-            constraint_max)
 
         self.wrap = wrap
 
