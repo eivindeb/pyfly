@@ -970,7 +970,7 @@ class PyFly:
         # TODO: check that all plotted variables are declared in cfg.variables
         self.plots = []
         for i, p in enumerate(self.cfg["plots"]):
-            vars = p.pop("variables")
+            vars = p.pop("states")
             p["dt"] = self.dt
             p["id"] = i
             self.plots.append(Plot(**p))

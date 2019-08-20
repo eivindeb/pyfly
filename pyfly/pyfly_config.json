@@ -222,6 +222,26 @@
       "tau": 0.2,
       "unit": "%",
       "label": "throttle"
+    },
+    {
+      "name": "energy_total",
+      "unit": "J",
+      "label": "$E_T$"
+    },
+    {
+      "name": "energy_potential",
+      "unit": "J",
+      "label": "$E_p$"
+    },
+    {
+      "name": "energy_kinetic_rotational",
+      "unit": "J",
+      "label": "$E_{K_R}$"
+    },
+    {
+      "name": "energy_kinetic_translational",
+      "unit": "J",
+      "label": "$E_{K_T}$"
     }
   ],
   "actuation": {
@@ -232,29 +252,34 @@
     {
       "title": "Roll ($\\phi$) and Pitch ($\\theta$)",
       "x_unit": "seconds",
-      "variables": ["roll", "pitch"]
+      "states": ["roll", "pitch"]
     },
     {
       "title": "Angular rates ($\\omega$)",
       "x_unit": "seconds",
-      "variables": ["omega_p", "omega_q", "omega_r"]
+      "states": ["omega_p", "omega_q", "omega_r"]
     },
     {
       "title": "Angle of attack ($\\alpha$), sideslip angle ($\\beta$) and airspeed ($V_a$)",
       "x_unit": "seconds",
-      "variables": ["alpha", "beta", "Va"]
+      "states": ["alpha", "beta", "Va"]
     },
     {
       "title": "Control States",
       "x_unit": "seconds",
-      "variables": ["elevator", "aileron", "throttle"],
+      "states": ["elevator", "aileron", "throttle"],
       "plot_quantity": "value"
     },
     {
       "title": "Control commands",
       "x_unit": "seconds",
-      "variables": ["elevator", "aileron", "throttle"],
+      "states": ["elevator", "aileron", "throttle"],
       "plot_quantity": "command"
+    },
+    {
+      "title": "Energy",
+      "x_unit": "timesteps",
+      "states": ["energy_total", "energy_kinetic_translational", "energy_potential"]
     }
   ]
 }
