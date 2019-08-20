@@ -33,8 +33,6 @@ class Variable:
         :param label: (string) label given to state in plots
         :param wrap: (bool) whether to wrap state value in region [-pi, pi]
         """
-        assert init_min is not None or value_min is not None
-        assert init_max is not None or value_max is not None
         self.value_min = value_min
         self.value_max = value_max
 
@@ -45,9 +43,9 @@ class Variable:
         self.constraint_max = constraint_max
 
         if convert_to_radians:
-            for name, val in self.__dict__.items():
+            for attr_name, val in self.__dict__.items():
                 if val is not None:
-                    setattr(self, name, np.radians(val))
+                    setattr(self, attr_name, np.radians(val))
 
         self.name = name
 
@@ -75,7 +73,10 @@ class Variable:
         self.history = []
 
         if value is None:
-            value = self.np_random.uniform(self.init_min, self.init_max)
+            try:
+                value = self.np_random.uniform(self.init_min, self.init_max)
+            except TypeError:
+                raise Exception("Variable init_min and init_max can not be None if no value is provided on reset")
         else:
             value = self.apply_conditions(value)
 
