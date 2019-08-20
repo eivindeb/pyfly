@@ -51,48 +51,70 @@ Rendering this scenario produces:
 ![alt text](examples/render.png "render result")
 
 ## Documentation
-PyFly is highly configurable through its config json file. All model states must be declared in this file, and be on the
-following form:
-```text
-    "dt": 0.01,           # REQUIRED The integration duration for each call to step()
-    "g": 9.81,            # REQUIRED The gravational constant
-    "rho": 1.2250,        # REQUIRED The permutativity of air
-    "turbulence": true,   # REQUIRED Wether turbulence (from Dryden Turbulence model) is enabled
-    "turbulence_intensity": "light", # REQUIRED The intensity of the turbulence. One of "light", "moderate", "severe"
-    "states": [   # REQUIRED: Declaration of states in model
-      {
-        "name": "roll",    # REQUIRED: Name of state
-        "unit": "degrees", # The unit of the state for plotting purposes
-        "init_min": -30,   # The minimum initial value of the state
-        "init_max": 30,    # The maximum initial value of the state
-        "value_min": -60   # The minimum value the state can be in, e.g. by physical constraints
-        "value_max": 60    # Maximum value the state can be in
-        "convert_to_radians": true, # If state properties are given in degrees
-        "wrap": true, # For angle variables, whether to wrap variable in [-pi, pi]
-        "label": "r"  # The label of the state for plotting purposes
-      },
-      # ACTUATOR STATES
-      {
-        "name": "elevator",
-        "constraints_min": -60 # Violating this value will cause the simulation to end, e.g. for unfeasable flight scenarios
-        "constraints_max": 60  # Upper constraint limit
-        "order": 2 # REQUIRED FOR CONTROL STATE The order of the actuator dynamics, one of 1 or 2
-        "omega_0": 100 # Omega_0 for second order actuator dynamics
-        "zeta": 1.71  # Zeta for second order actuator dynamics
-        "tau": 5 #  Time constant for first order actuator dynamics
-        "disabled": false, # Wether the actuator is disabled, i.e. not present on the specific aircraft
-        "dot_max": 3.497, # Constraint on magnitude of derivative of state for second order actuator dynamics.
-      }
-    ],
-   "plots": [  # Plots can easily be constructed through the plot argument
-     {
-      "title": "Angle of Attack, Sideslip Angle and Airspeed", # REQUIRED Title of plot
-      "x_unit": "timesteps",                                   # REQUIRED The unit of the x-axis, one of "timesteps" or "seconds".
-      "variables": ["alpha", "beta", "Va"]                     # REQUIRED The variables in the plot
-      "plot_quantity": "value"                                 # What state quantity to plot, one of "value", "dot" or "command".
-     },
-   ]
-```
+PyFly is highly configurable through its config json file. For a description of functions and their use, see the 
+docstrings of each function. 
+ 
+The config file consists of four blocks:
+
+### System settings
+The system settings consists of the following arguments, of which all are required:
+
+* **dt**: Float. The integration duration for each call to step()
+* **g**: Float. The gravitational acceleration
+* **rho**: Float. The permutativity of the air
+* **turbulence** Boolean. Controls if turbulence (from Dryden Turbulence Model) is enabled.
+* **turbulence** String. If turbulence is enabled, controls the intensity of the turbulence as described in the Dryden
+Turbulence Model. One of "light", "moderate", "severe".
+
+### States
+All states used in the simulator must be declared in the states block. The simulator wont run without the states in 
+PyFly.REQUIRED_VARIABLES being declared, but optional states such as energy states can be declared here if they are to
+be plotted or otherwise are needed. Only the name argument is strictly required, although other arguments can be
+required if the state is to be plotted.
+
+* **name**: String. Name of state
+* **unit**: String. The unit the variable is to be plotted in. Can be any arbitrary string or %, for which its values
+will be plotted as a percentage of maximum and minimum values as specified by value_max and value_min. States in plots
+that share units are drawn on the same axis.
+* **init_min**: Float. The minimum value the state can be initialized to.
+* **init_max**: Float. The maximum value the state can be initialized to.
+* **value_min**: Float. The minimum value the state can assume, e.g. set by physical constraints on state.
+* **value_max**: Float. The maximum value the state can assume, e.g. set by physical constraints on state.
+* **constraints_min** Float. The state will raise a ConstraintException if it is set lower than this value.
+* **constraints_min** Float. The state will raise a ConstraintException if it is set higher than this value.
+* **convert_to_radians** Boolean. Set this to true if the configuration arguments for the state are given in degrees.
+* **wrap** Boolean. If set to true, the value will be wrapped in [-pi, pi].
+* **label** String. The label of the state in plots. Supports Latex syntax.
+
+For states representing actuators, some additional arguments are required:
+* **order** Integer. The order of the dynamics of the actuator state. One of 1 or 2.
+* **omega_0** Float. The undamped natural frequency of the second order dynamics.
+* **zeta** Float. The damping factor of the second order dynamics.
+* **tau** Float. The time constant for first order actuator dynamics.
+* **dot_max** Float. Saturation on the magnitude of the derivative of the state for second order actuator dynamics.
+* **disabled** Boolean. Sets the state to disabled and its value to zero. E.g. if the aircraft in question has no rudder.
+
+### Actuation
+The actuation block defines the inputs given to the simulator, and the states used to simulate the actuator dynamics.
+Note that these can be different from the actuators used in the model (i.e. elevator, aileron, rudder, throttle), e.g.
+if the aircraft in question has elevons instead of elevator and aileron, in which case the actuator states will be 
+mapped to the ones required by the simulator model.
+
+* **dynamics** List of strings. The names of the states used to simulate the actuator dynamics of the aircraft. These should be the
+actuators physically present on the aircraft.
+* **inputs** List of strings. The names of the states for which setpoints are fed to the step() function.
+
+### Plots
+Plots can easily be constructed through the plots block. Each entry gets its own plot in the figure produced by render
+when mode="plot". A plot can support any number of states, so long as the set of state contains a maximum of two unique units.
+States with differing unit from the first listed state will be plotted on a twin y-axis on the right side of the figure.
+* **title**: String. Title of the plot.
+* **x_unit**. String. The unit of the x-axis. One of "seconds" or "timesteps".
+* **states**. List of strings. The names of the states to be included in the plot.
+* **plot_quantity**. String. Only used for actuator states. What quantity of the state to plot, one of "value", "dot"
+or "command".
+
+Additionally, each state can be plotted by itself by calling its plot function. 
 
 ## Citation
 If you use this software, please cite:
@@ -104,6 +126,25 @@ If you use this software, please cite:
     year={2019},
 }
 ```
+
+## Changelog
+
+###Release 0.1.1 (2019-08-20)
+
+---
+* Reworked actuation module
+⋅⋅* Added actuation block to config file, specifying the input states to the step function and the states used
+to simulate the actuator dynamics. 
+..* PyFly now supports directly inputing elevon commands
+
+* Added optional energy states. When present in the states block of the config file, PyFly will calculate and record
+the specified energy states, allowing them to be inspected and plotted.
+
+* Target bounds can now be specified for variable plot. When the state value is within the bound of the target value,
+the bound area will be shaded with the lines' color.
+
+* Updated Readme and example.
+
 
 
 
