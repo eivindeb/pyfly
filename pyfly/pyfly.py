@@ -3,7 +3,6 @@ import math
 import scipy.integrate
 import scipy.io
 import os.path as osp
-from os import remove
 import json
 import matplotlib.pyplot as plt
 import matplotlib.gridspec
