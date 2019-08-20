@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='pyfly',
-    version='0.1.0',
+    version='0.1.1',
     url="https://github.com/eivindeb/pyfly",
     author="Eivind Bøhn",
     author_email="eivind.bohn@gmail.com",
