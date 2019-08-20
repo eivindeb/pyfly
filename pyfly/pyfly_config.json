@@ -79,8 +79,8 @@
     },
     {
       "name": "position_d",
-      "init_min":  0,
-      "init_max": 0,
+      "init_min":  -20,
+      "init_max": -100,
       "unit": "m",
       "label": "Down"
     },
