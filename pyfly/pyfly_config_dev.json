@@ -265,12 +265,12 @@
       "states": ["alpha", "beta", "Va"]
     },
     {
-      "title": "Energy 1",
+      "title": "Energy (total/potential)",
       "x_unit": "seconds",
       "states": ["energy_total", "energy_potential"]
     },
     {
-      "title": "Energy 2",
+      "title": "Energy (translational/rotational)",
       "x_unit": "seconds",
       "states": ["energy_kinetic_translational", "energy_kinetic_rotational"]
     },
