@@ -24,10 +24,10 @@ from pid_controller import PIDController
 sim = PyFly("pyfly_config.json", "x8_param.mat")
 sim.seed(0)
 
-sim.reset(state={"roll": -0.5, "pitch": 0})
+sim.reset(state={"roll": -0.5, "pitch": 0.15})
 
 pid = PIDController(sim.dt)
-pid.set_reference(0.2, -0.1, 22)
+pid.set_reference(phi=0.2, theta=0, va=22)
 
 for step_i in range(500):
     phi = sim.state["roll"].value

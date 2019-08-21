@@ -1428,14 +1428,14 @@ if __name__ == "__main__":
     from dryden import DrydenGustModel
     from pid_controller import PIDController
 
-    pfly = PyFly("pyfly_config_dev.json", "x8_param.mat")
+    pfly = PyFly("pyfly_config.json", "x8_param_new.mat")
     pfly.seed(0)
 
     pid = PIDController(pfly.dt)
-    pid.set_reference(np.radians(30), np.radians(-5), 22)
+    pid.set_reference(phi=0.2, theta=0, va=22)
 
-    pfly.reset()
-    for i in range(1000):
+    pfly.reset(state={"roll": -0.5, "pitch": 0.15})
+    for i in range(500):
         phi = pfly.state["roll"].value
         theta = pfly.state["pitch"].value
         Va = pfly.state["Va"].value
