@@ -921,7 +921,7 @@ class PyFly:
         self.energy_states = []
 
         if not set(self.REQUIRED_VARIABLES).issubset([v["name"] for v in self.cfg["variables"]]):
-            raise Exception("Missing required variables in config file: {}".format(
+            raise Exception("Missing required variable(s) in config file: {}".format(
                 ",".join(list(set(self.REQUIRED_VARIABLES) - set([v["name"] for v in self.cfg["variables"]])))))
 
         self.dt = self.cfg["dt"]
