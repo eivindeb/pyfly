@@ -3,7 +3,6 @@ import math
 import scipy.integrate
 import scipy.io
 import os.path as osp
-from os import remove
 import json
 import matplotlib.pyplot as plt
 import matplotlib.gridspec
@@ -34,26 +33,31 @@ class Variable:
         :param label: (string) label given to state in plots
         :param wrap: (bool) whether to wrap state value in region [-pi, pi]
         """
+        self.value_min = value_min
+        self.value_max = value_max
+
+        self.init_min = init_min if init_min is not None else value_min
+        self.init_max = init_max if init_max is not None else value_max
+
+        self.constraint_min = constraint_min
+        self.constraint_max = constraint_max
+
+        if convert_to_radians:
+            for attr_name, val in self.__dict__.items():
+                if val is not None:
+                    setattr(self, attr_name, np.radians(val))
+
         self.name = name
 
         self.value = None
-        self.value_min = value_min if not convert_to_radians or value_min is None else np.deg2rad(value_min)
-        self.value_max = value_max if not convert_to_radians or value_max is None else np.deg2rad(value_max)
-
-        self.init_min = init_min if not convert_to_radians or init_min is None else np.deg2rad(init_min)
-        self.init_max = init_max if not convert_to_radians or init_max is None else np.deg2rad(init_max)
-
-        self.constraint_min = constraint_min if not convert_to_radians or constraint_min is None else np.deg2rad(
-            constraint_min)
-        self.constraint_max = constraint_max if not convert_to_radians or constraint_max is None else np.deg2rad(
-            constraint_max)
 
         self.wrap = wrap
 
         self.unit = unit
-        self.label = label
+        self.label = label if label is not None else self.name
         self.lines = {"self": None}
         self.target_lines = {"self": None}
+        self.target_bounds = {"self": None}
 
         self.np_random = None
         self.seed()
@@ -69,7 +73,10 @@ class Variable:
         self.history = []
 
         if value is None:
-            value = self.np_random.uniform(self.init_min, self.init_max)
+            try:
+                value = self.np_random.uniform(self.init_min, self.init_max)
+            except TypeError:
+                raise Exception("Variable init_min and init_max can not be None if no value is provided on reset")
         else:
             value = self.apply_conditions(value)
 
@@ -144,10 +151,16 @@ class Variable:
         x, y = self._get_plot_x_y_data()
         if "degrees" in y_unit:
             y = np.degrees(y)
-            target = np.degrees(target) if target is not None else None
-        elif y_unit == "%":
+            if target is not None:
+                target["data"] = np.degrees(target["data"])
+                if "bound" in target:
+                    target["bound"] = np.degrees(target["bound"])
+        elif y_unit == "%":  # TODO: scale positive according to positive limit and negative according to lowest minimum value
             y = linear_scaling(y, self.value_min, self.value_max, -100, 100)
-            target = linear_scaling(target, self.value_min, self.value_max, -100, 100) if target is not None else None
+            if target is not None:
+                target["data"] = linear_scaling(target["data"], self.value_min, self.value_max, -100, 100)
+                if "bound" in target:
+                    target["bound"] = linear_scaling(target["bound"], self.value_min, self.value_max, -100, 100)
         else:
             y = y
 
@@ -162,14 +175,25 @@ class Variable:
             self.lines[plot_id] = line
 
             if target is not None:
-                tar_line, = plot_object.plot(x, target, color=self.lines[plot_id].get_color(), linestyle="dashed",
+                tar_line, = plot_object.plot(x, target["data"], color=self.lines[plot_id].get_color(), linestyle="dashed",
                                              marker="x", markevery=0.2)
+
+                if "bound" in target:
+                    tar_bound = plot_object.fill_between(np.arange(target["bound"].shape[0]),
+                                                         target["data"] + target["bound"],
+                                                         target["data"] - target["bound"], alpha=0.15,
+                                                         facecolor=self.lines[plot_id].get_color()
+                                                        )
+                    self.target_bounds[plot_id] = tar_bound
                 self.target_lines[plot_id] = tar_line
         else:
             self.lines[plot_id].set_data(x, y)
             if target is not None:
                 self.target_lines[plot_id].set_data(x, target)
-
+                if "bound" in target:  # TODO: fix this?
+                    self.target_bounds[plot_id].set_data(np.arange(target["bound"].shape[0]),
+                                                         target["data"] + target["bound"],
+                                                         target["data"] - target["bound"])
         if axis is None:
             for k, v in fig_kw.items():
                 getattr(plot_object, format(k))(v)
@@ -183,6 +207,7 @@ class Variable:
         """
         self.lines[plot_id] = None
         self.target_lines[plot_id] = None
+        self.target_bounds[plot_id] = None
 
     def _get_plot_x_y_data(self):
         """
@@ -205,7 +230,7 @@ class ControlVariable(Variable):
         :param omega_0: (float) undamped natural frequency of second order transfer functions
         :param zeta: (float) damping factor of second order transfer function
         :param dot_max: (float) constraint on magnitude of derivative of second order transfer function
-        :param disabled: (float) if actuator is disabled for airfract
+        :param disabled: (bool) if actuator is disabled for aircraft, e.g. aircraft has no rudder
         :param kwargs: (dict) keyword arguments for Variable class
         """
         assert (disabled or (order == 1 or order == 2))
@@ -225,6 +250,8 @@ class ControlVariable(Variable):
         self.dot = None
         self.command = None
         self.disabled = disabled
+        if self.disabled:
+            self.value = 0
         self.plot_quantity = "value"
 
     def apply_conditions(self, values):
@@ -316,105 +343,209 @@ class ControlVariable(Variable):
             return []
 
 
+class EnergyVariable(Variable):
+    def __init__(self, mass=None, inertia_matrix=None, gravity=None, **kwargs):
+        super().__init__(**kwargs)
+        self.required_variables = []
+        self.variables = {}
+        if self.name == "energy_potential" or self.name == "energy_total":
+            assert(mass is not None and gravity is not None)
+            self.mass = mass
+            self.gravity = gravity
+            self.required_variables.append("position_d")
+        if self.name == "energy_kinetic" or self.name == "energy_total":
+            assert (mass is not None and inertia_matrix is not None)
+            self.mass = mass
+            self.inertia_matrix = inertia_matrix
+            self.required_variables.extend(["Va", "omega_p", "omega_q", "omega_r"])
+        if self.name == "energy_kinetic_rotational":
+            assert(inertia_matrix is not None)
+            self.inertia_matrix = inertia_matrix
+            self.required_variables.extend(["omega_p", "omega_q", "omega_r"])
+        if self.name == "energy_kinetic_translational":
+            assert(mass is not None)
+            self.mass = mass
+            self.required_variables.append("Va")
+
+    def add_requirement(self, name, variable):
+        self.variables[name] = variable
+
+    def calculate_value(self):
+        val = 0
+        if self.name == "energy_potential" or self.name == "energy_total":
+            val += self.mass * self.gravity * (-self.variables["position_d"].value)
+        if self.name == "energy_kinetic_rotational" or self.name == "energy_kinetic" or self.name == "energy_total":
+            for i, axis in enumerate(["omega_p", "omega_q", "omega_r"]):
+                m_i = self.inertia_matrix[i, i]
+                val += 1 / 2 * m_i * self.variables[axis].value ** 2
+        if self.name == "energy_kinetic_translational" or self.name == "energy_kinetic" or self.name == "energy_total":
+            val += 1 / 2 * self.mass * self.variables["Va"].value ** 2
+
+        return val
+
+
 class Actuation:
-    def __init__(self):
+    def __init__(self, model_inputs, actuator_inputs, dynamics):
+        """
+        PyFly actuation object, responsible for verifying validity of configured actuator model, processing inputs and
+        actuator dynamics.
+
+        :param model_inputs: ([string]) the states used by PyFly as inputs to dynamics
+        :param actuator_inputs: ([string]) the user configured actuator input states
+        :param dynamics: ([string]) the user configured actuator states to simulate dynamics for
+        """
         self.states = {}
         self.coefficients = [[np.array([]) for _ in range(3)] for __ in range(2)]
-        self.elevons = False
-        self.not_disabled = []
+        self.elevon_dynamics = False
+        self.dynamics = dynamics
+        self.inputs = actuator_inputs
+        self.model_inputs = model_inputs
+        self.input_indices = {s: i for i, s in enumerate(actuator_inputs)}
+        self.dynamics_indices = {s: i for i, s in enumerate(dynamics)}
 
     def set_states(self, values, save=True):
-        for i, state in enumerate(self.not_disabled):
-            self.states[state].set_value((values[i], values[len(self.not_disabled) + i]), save=save)
+        """
+        Set values of actuator states.
 
-        if self.elevons:
-            aileron = -0.5 * self.states["elevon_right"].value + 0.5 * self.states["elevon_left"].value
-            elevator = 0.5 * self.states["elevon_right"].value + 0.5 * self.states["elevon_left"].value
+        :param values: ([float]) list of state values + list of state derivatives
+        :param save: (bool) whether to commit values to state history
+        :return:
+        """
+        for i, state in enumerate(self.dynamics):
+            self.states[state].set_value((values[i], values[len(self.dynamics) + i]), save=save)
+
+        # Simulator model operates on elevator and aileron angles, if aircraft has elevon dynamics need to map
+        if self.elevon_dynamics:
+            elevator, aileron = self._map_elevon_to_elevail(er=self.states["elevon_right"].value,
+                                                            el=self.states["elevon_left"].value)
 
             self.states["aileron"].set_value((aileron, 0), save=save)
             self.states["elevator"].set_value((elevator, 0), save=save)
 
     def add_state(self, state):
-        if "elevon" in state.name:
-            self.elevons = True
+        """
+        Add actuator state, and configure dynamics if state has dynamics.
+
+        :param state: (ControlVariable) actuator state
+        :return:
+        """
         self.states[state.name] = state
-        if not state.disabled:
-            self.not_disabled.append(state.name)
+        if state.name in self.dynamics:
             for i in range(2):
                 for j in range(3):
                     self.coefficients[i][j] = np.append(self.coefficients[i][j], state.coefs[i][j])
 
     def get_values(self):
-        return [self.states[state].value for state in self.not_disabled] + [self.states[state].dot for state in
-                                                                            self.not_disabled]
+        """
+        Get state values and derivatives for states in actuator dynamics.
 
-    def rhs(self, setpoints):
+        :return: ([float]) list of state values + list of state derivatives
+        """
+        return [self.states[state].value for state in self.dynamics] + [self.states[state].dot for state in
+                                                                            self.dynamics]
+
+    def rhs(self, setpoints=None):
         """
         Right hand side of actuator differential equation.
 
-        :param t: (float) time of integration
-        :param setpoints: ([float]) setpoint for actuators
+        :param setpoints: ([float] or None) setpoints for actuators. If None, setpoints are set as the current command
+        of the dynamics variable
         :return: ([float]) right hand side of actuator differential equation.
         """
-        setpoints = self._get_setpoints(setpoints)
+        if setpoints is None:
+            setpoints = [self.states[state].command for state in self.dynamics]
+        states = [self.states[state].value for state in self.dynamics]
+        dots = [self.states[state].dot for state in self.dynamics]
+        dot = np.multiply(states,
+                          self.coefficients[0][0]) + np.multiply(setpoints,
+                                                                 self.coefficients[0][2]) + np.multiply(dots, self.coefficients[0][1])
+        ddot = np.multiply(states,
+                           self.coefficients[1][0]) + np.multiply(setpoints,
+                                                                  self.coefficients[1][2]) + np.multiply(dots, self.coefficients[1][1])
 
-        states = [self.states[state].value for state in self.not_disabled]
-        dots = [self.states[state].dot for state in self.not_disabled]
-        dot = np.multiply(states, self.coefficients[0][0]) + np.multiply(setpoints,
-                                                                         self.coefficients[0][2]) + np.multiply(dots,
-                                                                                                                self.coefficients[
-                                                                                                                    0][
-                                                                                                                    1])
-        ddot = np.multiply(states, self.coefficients[1][0]) + np.multiply(setpoints,
-                                                                          self.coefficients[1][2]) + np.multiply(dots,
-                                                                                                                 self.coefficients[
-                                                                                                                     1][
-                                                                                                                     1])
         return np.concatenate((dot, ddot))
 
-    def _get_setpoints(self, setpoints):
-        res = []
-        if self.elevons:
-            res.append(setpoints[0] - setpoints[1])
-            res.append(setpoints[1] + setpoints[0])
-        else:
-            res = setpoints[:2]
-
-        for i, state in enumerate(["rudder", "throttle"]):
-            if state in self.not_disabled:
-                res.append(setpoints[i + 2])
-
-        return res
-
     def set_and_constrain_commands(self, commands):
-        command_states = ["elevator", "aileron", "rudder", "throttle"]
-        if self.elevons:
-            elevon_commands = self._get_setpoints(commands)
-            self.states["elevon_right"].set_command(elevon_commands[0])
-            self.states["elevon_left"].set_command(elevon_commands[1])
-            commands[0] = (self.states["elevon_right"].command + self.states["elevon_left"].command) / 2
-            commands[1] = (self.states["elevon_left"].command - self.states["elevon_right"].command) / 2
-        for i, state in enumerate(command_states):
-            self.states[state].set_command(commands[i])
+        """
+        Take  raw actuator commands and constrain them according to the state limits and constraints, and update state
+        values and history.
+
+        :param commands: ([float]) raw commands
+        :return: ([float]) constrained commands
+        """
+        dynamics_commands = {}
+        if self.elevon_dynamics and "elevator" and "aileron" in self.inputs:
+            elev_c, ail_c = commands[self.input_indices["elevator"]], commands[self.input_indices["aileron"]]
+            elevon_r_c, elevon_l_c = self._map_elevail_to_elevon(elev=elev_c, ail=ail_c)
+            dynamics_commands = {"elevon_right": elevon_r_c, "elevon_left": elevon_l_c}
+
+        for state in self.dynamics:
+            if state in self.input_indices:
+                state_c = commands[self.input_indices[state]]
+            else:  # Elevail inputs with elevon dynamics
+                state_c = dynamics_commands[state]
+            self.states[state].set_command(state_c)
+            dynamics_commands[state] = self.states[state].command
+
+        # The elevator and aileron commands constrained by limitatons on physical elevons
+        if self.elevon_dynamics:
+            elev_c, ail_c = self._map_elevon_to_elevail(er=dynamics_commands["elevon_right"],
+                                                        el=dynamics_commands["elevon_left"])
+            self.states["elevator"].set_command(elev_c)
+            self.states["aileron"].set_command(ail_c)
+
+        for state, i in self.input_indices.items():
             commands[i] = self.states[state].command
 
         return commands
 
     def finalize(self):
-        if self.elevons:
+        """
+        Assert valid configuration of actuator dynamics and set actuator state limits if applicable.
+        """
+        if "elevon_left" in self.dynamics or "elevon_right" in self.dynamics:
+            assert("elevon_left" in self.dynamics and "elevon_right" in self.dynamics and not ("aileron" in self.dynamics
+                   or "elevator" in self.dynamics))
             assert ("elevon_left" in self.states and "elevon_right" in self.states)
-            self.states["elevator"].value_min = max(self.states["elevon_right"].value_min,
-                                                    self.states["elevon_left"].value_min)
-            self.states["elevator"].value_max = min(self.states["elevon_right"].value_max,
-                                                    self.states["elevon_left"].value_max)
+            self.elevon_dynamics = True
 
-            self.states["aileron"].value_min = (self.states["elevon_left"].value_min - self.states[
-                "elevon_right"].value_max) / 2
-            self.states["aileron"].value_max = (self.states["elevon_left"].value_max - self.states[
-                "elevon_right"].value_min) / 2
+            # Set elevator and aileron limits from elevon limits for plotting purposes etc.
+            if "elevator" in self.states:
+                elev_min, _ = self._map_elevon_to_elevail(er=self.states["elevon_right"].value_min,
+                                                          el=self.states["elevon_left"].value_min)
+                elev_max, _ = self._map_elevon_to_elevail(er=self.states["elevon_right"].value_max,
+                                                          el=self.states["elevon_left"].value_max)
+                self.states["elevator"].value_min = elev_min
+                self.states["elevator"].value_max = elev_max
+            if "aileron" in self.states:
+                _, ail_min = self._map_elevon_to_elevail(er=self.states["elevon_right"].value_max,
+                                                         el=self.states["elevon_left"].value_min)
+                _, ail_max = self._map_elevon_to_elevail(er=self.states["elevon_right"].value_min,
+                                                         el=self.states["elevon_left"].value_max)
+                self.states["aileron"].value_min = ail_min
+                self.states["aileron"].value_max = ail_max
 
-        self.not_disabled.sort(
-            key=lambda x: ["elevon_right", "elevon_left", "elevator", "aileron", "rudder", "throttle"].index(x))
+    def reset(self, state_init=None):
+        for state in self.dynamics:
+            init = None
+            if state_init is not None and state in state_init:
+                init = state_init[state]
+            self.states[state].reset(value=init)
+
+        if self.elevon_dynamics:
+            elev, ail = self._map_elevon_to_elevail(er=self.states["elevon_right"].value, el=self.states["elevon_left"].value)
+            self.states["elevator"].reset(value=elev)
+            self.states["aileron"].reset(value=ail)
+
+    def _map_elevail_to_elevon(self, elev, ail):
+        er = -1 * ail + elev
+        el = ail + elev
+        return er, el
+
+    def _map_elevon_to_elevail(self, er, el):
+        ail = (-er + el) / 2
+        elev = (er + el) / 2
+        return elev, ail
 
 
 class AttitudeQuaternion:
@@ -729,11 +860,11 @@ class Plot:
 
 class PyFly:
     REQUIRED_VARIABLES = ["alpha", "beta", "roll", "pitch", "yaw", "omega_p", "omega_q", "omega_r", "position_n",
-                          "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w", "elevator", "throttle",
-                          "aileron", "Va"]
+                          "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w", "Va",
+                          "elevator", "aileron", "rudder", "throttle"]
 
     def __init__(self,
-                 config_path=osp.join(osp.dirname(__file__), "pyfly_config.json"),
+                 config_path=osp.join(osp.dirname(__file__), "pyfly_config_dev.json"),
                  parameter_path=osp.join(osp.dirname(__file__), "x8_param.mat"),
                  config_kw=None):
         """
@@ -760,57 +891,6 @@ class PyFly:
         else:
             raise Exception("Unsupported parameter file extension.")
 
-        with open(config_path) as config_file:
-            self.cfg = json.load(config_file)
-
-        if config_kw is not None:
-            set_config_attrs(self.cfg, config_kw)
-
-        self.state = {}
-        self.attitude_states = ["roll", "pitch", "yaw"]
-        self.actuator_states = ["elevator", "aileron", "rudder", "throttle", "elevon_left", "elevon_right"]
-        self.inputs = ["elevator", "aileron", "rudder", "throttle"]
-
-        if not set(self.REQUIRED_VARIABLES).issubset([v["name"] for v in self.cfg["variables"]]):
-            raise Exception("Missing required variables in config file: {}".format(
-                ",".join(list(set(self.REQUIRED_VARIABLES) - set([v["name"] for v in self.cfg["variables"]])))))
-
-        self.dt = self.cfg["dt"]
-        self.rho = self.cfg["rho"]
-        self.g = self.cfg["g"]
-        self.wind = Wind(mag_min=self.cfg["wind_magnitude_min"], mag_max=self.cfg["wind_magnitude_max"],
-                         turbulence=self.cfg["turbulence"], turbulence_intensity=self.cfg["turbulence_intensity"],
-                         dt=self.cfg["dt"], b=self.params["b"])
-
-        self.state["attitude"] = AttitudeQuaternion()
-        self.attitude_states_with_constraints = []
-
-        self.actuation = Actuation()
-
-        for v in self.cfg["variables"]:
-            if v["name"] in self.attitude_states and any([v.get(attribute, None) is not None for attribute in
-                                                          ["constraint_min", "constraint_max", "value_min",
-                                                           "value_max"]]):
-                self.attitude_states_with_constraints.append(v["name"])
-            if v["name"] in self.actuator_states:
-                self.state[v["name"]] = ControlVariable(**v)
-                self.actuation.add_state(self.state[v["name"]])
-            else:
-                self.state[v["name"]] = Variable(**v)
-
-            if "wind" in v["name"]:
-                self.wind.components.append(self.state[v["name"]])
-
-        self.actuation.finalize()
-        self.plots = []
-        for i, p in enumerate(self.cfg["plots"]):
-            vars = p.pop("variables")
-            p["dt"] = self.dt
-            p["id"] = i
-            self.plots.append(Plot(**p))
-            for v_name in vars:
-                self.plots[-1].add_variable(self.state[v_name])
-
         self.I = np.array([[self.params["Jx"], 0, -self.params["Jxz"]],
                            [0, self.params["Jy"], 0, ],
                            [-self.params["Jxz"], 0, self.params["Jz"]]
@@ -826,10 +906,76 @@ class PyFly:
         self.gammas.append(((self.I[0, 0] - self.I[1, 1]) * self.I[0, 0] + self.I[0, 2] ** 2) / self.gammas[0])
         self.gammas.append(self.I[0, 0] / self.gammas[0])
 
-        self.params["C_prop"] = 0.248
-        self.params["k_motor"] = 37.42
-        self.params["k_Omega"] = 797.1268
-        self.params["k_T_P"] = 1.1871e-6
+        self.params["ar"] = self.params["b"] ** 2 / self.params["S_wing"]  # aspect ratio
+
+        with open(config_path) as config_file:
+            self.cfg = json.load(config_file)
+
+        if config_kw is not None:
+            set_config_attrs(self.cfg, config_kw)
+
+        self.state = {}
+        self.attitude_states = ["roll", "pitch", "yaw"]
+        self.actuator_states = ["elevator", "aileron", "rudder", "throttle", "elevon_left", "elevon_right"]
+        self.model_inputs = ["elevator", "aileron", "rudder", "throttle"]
+        self.energy_states = []
+
+        if not set(self.REQUIRED_VARIABLES).issubset([v["name"] for v in self.cfg["variables"]]):
+            raise Exception("Missing required variable(s) in config file: {}".format(
+                ",".join(list(set(self.REQUIRED_VARIABLES) - set([v["name"] for v in self.cfg["variables"]])))))
+
+        self.dt = self.cfg["dt"]
+        self.rho = self.cfg["rho"]
+        self.g = self.cfg["g"]
+        self.wind = Wind(mag_min=self.cfg["wind_magnitude_min"], mag_max=self.cfg["wind_magnitude_max"],
+                         turbulence=self.cfg["turbulence"], turbulence_intensity=self.cfg["turbulence_intensity"],
+                         dt=self.cfg["dt"], b=self.params["b"])
+
+        self.state["attitude"] = AttitudeQuaternion()
+        self.attitude_states_with_constraints = []
+
+        self.actuation = Actuation(model_inputs=self.model_inputs,
+                                   actuator_inputs=self.cfg["actuation"]["inputs"],
+                                   dynamics=self.cfg["actuation"]["dynamics"])
+
+        for v in self.cfg["variables"]:
+            if v["name"] in self.attitude_states and any([v.get(attribute, None) is not None for attribute in
+                                                          ["constraint_min", "constraint_max", "value_min",
+                                                           "value_max"]]):
+                self.attitude_states_with_constraints.append(v["name"])
+            if v["name"] in self.actuator_states:
+                self.state[v["name"]] = ControlVariable(**v)
+                self.actuation.add_state(self.state[v["name"]])
+            elif "energy" in v["name"]:
+                self.energy_states.append(v["name"])
+                self.state[v["name"]] = EnergyVariable(mass=self.params["mass"], inertia_matrix=self.I, gravity=self.g, **v)
+            else:
+                self.state[v["name"]] = Variable(**v)
+
+            if "wind" in v["name"]:
+                self.wind.components.append(self.state[v["name"]])
+
+        for state in self.model_inputs:
+            if state not in self.state:
+                self.state[state] = ControlVariable(name=state, disabled=True)
+                self.actuation.add_state(self.state[state])
+
+        self.actuation.finalize()
+
+        for energy_state in self.energy_states:
+            for req_var_name in self.state[energy_state].required_variables:
+                self.state[energy_state].add_requirement(req_var_name, self.state[req_var_name])
+
+        # TODO: check that all plotted variables are declared in cfg.variables
+        self.plots = []
+        for i, p in enumerate(self.cfg["plots"]):
+            vars = p.pop("states")
+            p["dt"] = self.dt
+            p["id"] = i
+            self.plots.append(Plot(**p))
+
+            for v_name in vars:
+                self.plots[-1].add_variable(self.state[v_name])
 
         self.cur_sim_step = None
         self.viewer = None
@@ -854,10 +1000,12 @@ class PyFly:
         self.cur_sim_step = 0
 
         for name, var in self.state.items():
-            if name in ["Va", "alpha", "beta", "attitude", "wind_n", "wind_e", "wind_d"]:
+            if name in ["Va", "alpha", "beta", "attitude"] or "wind" in name or "energy" in name or isinstance(var, ControlVariable):
                 continue
             var_init = state[name] if state is not None and name in state else None
             var.reset(value=var_init)
+
+        self.actuation.reset(state)
 
         wind_init = None
         if state is not None:
@@ -876,6 +1024,9 @@ class PyFly:
         self.state["beta"].reset(beta)
 
         self.state["attitude"].reset(Theta)
+
+        for energy_state in self.energy_states:
+            self.state[energy_state].reset(self.state[energy_state].calculate_value())
 
     def render(self, mode="plot", close=False, viewer=None, targets=None, block=False):
         """
@@ -934,7 +1085,7 @@ class PyFly:
         y0 = np.array(y0)
 
         try:
-            sol = scipy.integrate.solve_ivp(fun=lambda t, y: self._dynamics(t, y, control_inputs), t_span=(0, self.dt),
+            sol = scipy.integrate.solve_ivp(fun=lambda t, y: self._dynamics(t, y), t_span=(0, self.dt),
                                             y0=y0)
             self._set_states_from_ode_solution(sol.y[:, -1], save=True)
 
@@ -945,6 +1096,9 @@ class PyFly:
             self.state["Va"].set_value(Va)
             self.state["alpha"].set_value(alpha)
             self.state["beta"].set_value(beta)
+
+            for energy_state in self.energy_states:
+                self.state[energy_state].set_value(self.state[energy_state].calculate_value(), save=True)
 
             self.wind.set_value(self.cur_sim_step)
         except ConstraintException as e:
@@ -983,7 +1137,7 @@ class PyFly:
 
         np.save(path, res)
 
-    def _dynamics(self, t, y, control_sp):
+    def _dynamics(self, t, y, control_sp=None):
         """
         Right hand side of dynamics differential equation.
 
@@ -1000,7 +1154,7 @@ class PyFly:
 
         omega = self.get_states_vector(["omega_p", "omega_q", "omega_r"])
         vel = np.array(self.get_states_vector(["velocity_u", "velocity_v", "velocity_w"]))
-        u_states = self.get_states_vector(["elevator", "aileron", "rudder", "throttle"])
+        u_states = self.get_states_vector(self.model_inputs)
 
         f, tau = self._forces(attitude, omega, vel, u_states)
 
@@ -1046,14 +1200,14 @@ class PyFly:
         C_L_alpha_lin = self.params["C_L_0"] + self.params["C_L_alpha"] * alpha
 
         # Nonlinear version of lift coefficient with stall
-        a_0 = 0.2670
-        M = 50
-        e = 0.9935  # oswald efficiency
-        ar = self.params["b"] ** 2 / self.params["S_wing"]  # aspect ratio
-        C_D_p = 0.0102
-        C_m_fp = -0.2168
-        C_m_alpha = -0.2524
-        C_m_0 = 0.018
+        a_0 = self.params["a_0"]
+        M = self.params["M"]
+        e = self.params["e"]  # oswald efficiency
+        ar = self.params["ar"]
+        C_D_p = self.params["C_D_p"]
+        C_m_fp = self.params["C_m_fp"]
+        C_m_alpha = self.params["C_m_alpha"]
+        C_m_0 = self.params["C_m_0"]
 
         sigma = (1 + np.exp(-M * (alpha - a_0)) + np.exp(M * (alpha + a_0))) / (
                     (1 + np.exp(-M * (alpha - a_0))) * (1 + np.exp(M * (alpha + a_0))))
@@ -1279,17 +1433,17 @@ if __name__ == "__main__":
     pfly.seed(0)
 
     pid = PIDController(pfly.dt)
-    pid.set_reference(np.radians(30), np.radians(-5), 22)
+    pid.set_reference(phi=0.2, theta=0, va=22)
 
-    pfly.reset()
-    for i in range(100):
+    pfly.reset(state={"roll": -0.5, "pitch": 0.15})
+
+    for i in range(500):
         phi = pfly.state["roll"].value
         theta = pfly.state["pitch"].value
         Va = pfly.state["Va"].value
         omega = [pfly.state["omega_p"].value, pfly.state["omega_q"].value, pfly.state["omega_r"].value]
 
         action = pid.get_action(phi, theta, Va, omega)
-        action = [action[0], action[1], 0, action[2]]
         success, step_info = pfly.step(action)
 
         if not success:

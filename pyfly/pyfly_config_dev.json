@@ -37,8 +37,8 @@
       "name": "omega_p",
       "init_min": -40,
       "init_max": 40,
-      "constraint_min": -180,
-      "constraint_max": 180,
+      "constraint_min": -1800,
+      "constraint_max": 1800,
       "convert_to_radians": true,
       "unit": "degrees/s",
       "label": "p"
@@ -47,8 +47,8 @@
       "name": "omega_q",
       "init_min": -40,
       "init_max": 40,
-      "constraint_min": -180,
-      "constraint_max": 180,
+      "constraint_min": -1800,
+      "constraint_max": 1800,
       "convert_to_radians": true,
       "unit": "degrees/s",
       "label": "q"
@@ -57,8 +57,8 @@
       "name": "omega_r",
       "init_min": -40,
       "init_max": 40,
-      "constraint_min": -180,
-      "constraint_max": 180,
+      "constraint_min": -1800,
+      "constraint_max": 1800,
       "convert_to_radians": true,
       "unit": "degrees/s",
       "label": "r"
@@ -79,8 +79,8 @@
     },
     {
       "name": "position_d",
-      "init_min":  -20,
-      "init_max": -100,
+      "init_min":  0,
+      "init_max": 0,
       "unit": "m",
       "label": "Down"
     },
@@ -146,8 +146,8 @@
     {
       "name": "elevon_left",
       "value_min": -30,
-      "init_min": 0,
-      "init_max": 0,
+      "init_min": -30,
+      "init_max": 35,
       "value_max": 35,
       "convert_to_radians": true,
       "order": 2,
@@ -160,8 +160,8 @@
     {
       "name": "elevon_right",
       "value_min": -30,
-      "init_min": 0,
-      "init_max": 0,
+      "init_min": -30,
+      "init_max": 35,
       "value_max": 35,
       "convert_to_radians": true,
       "order": 2,
@@ -174,33 +174,33 @@
     {
       "name": "elevator",
       "value_min": -30,
-      "init_min": 0,
-      "init_max": 0,
+      "init_min": -30,
+      "init_max": 35,
       "value_max": 35,
       "convert_to_radians": true,
       "order": 2,
       "dot_max": 3.4907,
       "omega_0": 100,
       "zeta": 1.71,
-      "disabled": true,
+      "disabled": false,
       "unit": "%",
       "label": "elevator"
     },
     {
       "name": "aileron",
       "value_min": -30,
-      "init_min": 0,
-      "init_max": 0,
       "value_max": 35,
+      "init_min": -30,
+      "init_max": 35,
       "convert_to_radians": true,
       "order": 2,
       "dot_max": 3.4907,
       "omega_0": 100,
       "zeta": 1.71,
-      "disabled": true,
+      "disabled": false,
       "unit": "%",
       "label": "aileron"
-},
+    },
     {
       "name": "rudder",
       "dot_max": 3.4907,
@@ -217,7 +217,7 @@
       "value_min": 0,
       "value_max": 1,
       "init_min": 0,
-      "init_max": 0,
+      "init_max": 1,
       "order": 1,
       "tau": 0.2,
       "unit": "%",
@@ -246,13 +246,13 @@
   ],
   "actuation": {
     "dynamics": ["elevon_right", "elevon_left", "throttle"],
-    "inputs": ["elevator", "aileron", "throttle"]
+    "inputs": ["elevon_right", "elevon_left", "throttle"]
   },
   "plots": [
     {
       "title": "Roll ($\\phi$) and Pitch ($\\theta$)",
       "x_unit": "seconds",
-      "states": ["roll", "pitch"]
+      "states": ["roll", "pitch", "throttle"]
     },
     {
       "title": "Angular rates ($\\omega$)",
@@ -265,21 +265,24 @@
       "states": ["alpha", "beta", "Va"]
     },
     {
-      "title": "Control States",
+      "title": "Energy 1",
       "x_unit": "seconds",
-      "states": ["elevator", "aileron", "throttle"],
-      "plot_quantity": "value"
+      "states": ["energy_total", "energy_potential"]
     },
     {
-      "title": "Control commands",
+      "title": "Energy 2",
       "x_unit": "seconds",
-      "states": ["elevator", "aileron", "throttle"],
-      "plot_quantity": "command"
+      "states": ["energy_kinetic_translational", "energy_kinetic_rotational"]
     },
     {
-      "title": "Energy",
-      "x_unit": "timesteps",
-      "states": ["energy_total", "energy_kinetic_translational", "energy_potential"]
+      "title": "Velocity",
+      "x_unit": "seconds",
+      "states": ["velocity_u", "velocity_v", "velocity_w"]
+    },
+    {
+      "title": "Position",
+      "x_unit": "seconds",
+      "states": ["position_d"]
     }
   ]
 }
