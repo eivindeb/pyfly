@@ -860,7 +860,8 @@ class Plot:
 
 class PyFly:
     REQUIRED_VARIABLES = ["alpha", "beta", "roll", "pitch", "yaw", "omega_p", "omega_q", "omega_r", "position_n",
-                          "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w", "throttle", "Va"]
+                          "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w", "Va",
+                          "elevator", "aileron", "rudder", "throttle"]
 
     def __init__(self,
                  config_path=osp.join(osp.dirname(__file__), "pyfly_config_dev.json"),
@@ -1428,13 +1429,14 @@ if __name__ == "__main__":
     from dryden import DrydenGustModel
     from pid_controller import PIDController
 
-    pfly = PyFly("pyfly_config.json", "x8_param_new.mat")
+    pfly = PyFly("pyfly_config.json", "x8_param.mat")
     pfly.seed(0)
 
     pid = PIDController(pfly.dt)
     pid.set_reference(phi=0.2, theta=0, va=22)
 
     pfly.reset(state={"roll": -0.5, "pitch": 0.15})
+
     for i in range(500):
         phi = pfly.state["roll"].value
         theta = pfly.state["pitch"].value

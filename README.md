@@ -61,13 +61,16 @@ The system settings consists of the following arguments, of which all are requir
 * **g**: Float. The gravitational acceleration
 * **rho**: Float. The permutativity of the air
 * **turbulence** Boolean. Controls if turbulence (from Dryden Turbulence Model) is enabled.
-* **turbulence** String. If turbulence is enabled, controls the intensity of the turbulence as described in the Dryden
+* **turbulence_intensity** String. If turbulence is enabled, controls the intensity of the turbulence as described in the Dryden
 Turbulence Model. One of "light", "moderate", "severe".
 
 ### States
 All states used in the simulator must be declared in the states block. The simulator wont run without the states in 
 PyFly.REQUIRED_VARIABLES being declared, but optional states such as energy states can be declared here if they are to
-be plotted or otherwise are needed. Only the name argument is strictly required, although other arguments can be
+be plotted or otherwise are needed. Quaternions are used internally to represent attitude, but initial/value/constraint
+conditions are given on the Euler angles roll, pitch and yaw.
+
+Only the name argument is strictly required, although other arguments can be
 required if the state is to be plotted.
 
 * **name**: String. Name of state
@@ -90,7 +93,8 @@ For states representing actuators, some additional arguments are required:
 * **zeta** Float. The damping factor of the second order dynamics.
 * **tau** Float. The time constant for first order actuator dynamics.
 * **dot_max** Float. Saturation on the magnitude of the derivative of the state for second order actuator dynamics.
-* **disabled** Boolean. Sets the state to disabled and its value to zero. E.g. if the aircraft in question has no rudder.
+* **disabled** Boolean. Sets the state to disabled and its value to zero. E.g. if the aircraft in question has no rudder,
+and rudder is not virtualized through any other actuators.
 
 ### Actuation
 The actuation block defines the inputs given to the simulator, and the states used to simulate the actuator dynamics.
@@ -127,13 +131,14 @@ If you use this software, please cite:
 
 ## Changelog
 
-###Release 0.1.1 (2019-08-20)
+### Release 0.1.1 (2019-08-20)
 
 ---
+
 * Reworked actuation module
-⋅⋅* Added actuation block to config file, specifying the input states to the step function and the states used
+    * Added actuation block to config file, specifying the input states to the step function and the states used
 to simulate the actuator dynamics. 
-..* PyFly now supports directly inputing elevon commands
+    * PyFly now supports directly inputing elevon commands
 
 * Added optional energy states. When present in the states block of the config file, PyFly will calculate and record
 the specified energy states, allowing them to be inspected and plotted.
