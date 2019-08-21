@@ -1438,8 +1438,8 @@ if __name__ == "__main__":
     scenario = np.load("scenario_energy_increase.npy", allow_pickle=True).item()
     for state in remove_states:
         del scenario[state]
-    start_i = 465  # control what timestep in the scenario simulation starts from
-    n_steps = 1000 # how many of the remaining steps of the scenario to simulate
+    start_i = 0  # control what timestep in the scenario simulation starts from
+    n_steps = 2000 # how many of the remaining steps of the scenario to simulate
     init = {state: vals[start_i] if state not in pfly.actuator_states else vals["value"][start_i] for state, vals in
             scenario.items()}
     actions = {state: scenario[state]["command"][start_i:] for state in pfly.actuation.inputs}
