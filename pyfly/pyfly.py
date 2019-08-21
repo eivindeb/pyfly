@@ -1429,22 +1429,34 @@ if __name__ == "__main__":
     from dryden import DrydenGustModel
     from pid_controller import PIDController
 
-    pfly = PyFly("pyfly_config.json", "x8_param.mat")
+    pfly = PyFly("pyfly_config_dev.json", "x8_param.mat")
     pfly.seed(0)
 
     pid = PIDController(pfly.dt)
-    pid.set_reference(phi=0.2, theta=0, va=22)
 
-    pfly.reset(state={"roll": -0.5, "pitch": 0.15})
+    remove_states = ["attitude", "rudder"]
+    scenario = np.load("scenario_energy_increase.npy", allow_pickle=True).item()
+    for state in remove_states:
+        del scenario[state]
+    start_i = 465  # control what timestep in the scenario simulation starts from
+    n_steps = 1000 # how many of the remaining steps of the scenario to simulate
+    init = {state: vals[start_i] if state not in pfly.actuator_states else vals["value"][start_i] for state, vals in
+            scenario.items()}
+    actions = {state: scenario[state]["command"][start_i:] for state in pfly.actuation.inputs}
+    pfly.reset(init)
 
-    for i in range(500):
+    for i in range(n_steps):
         phi = pfly.state["roll"].value
         theta = pfly.state["pitch"].value
         Va = pfly.state["Va"].value
         omega = [pfly.state["omega_p"].value, pfly.state["omega_q"].value, pfly.state["omega_r"].value]
 
-        action = pid.get_action(phi, theta, Va, omega)
-        success = pfly.step(action)
+        # action = pid.get_action(phi, theta, Va, omega)
+        try:
+            action = [actions[state][i] for state in pfly.actuation.inputs]
+        except IndexError:
+            break
+        success, _ = pfly.step(action)
 
         if not success:
             break
