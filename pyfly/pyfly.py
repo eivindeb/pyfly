@@ -905,10 +905,7 @@ class PyFly:
         self.gammas.append(((self.I[0, 0] - self.I[1, 1]) * self.I[0, 0] + self.I[0, 2] ** 2) / self.gammas[0])
         self.gammas.append(self.I[0, 0] / self.gammas[0])
 
-        self.params["C_prop"] = 0.248
-        self.params["k_motor"] = 37.42
-        self.params["k_Omega"] = 797.1268
-        self.params["k_T_P"] = 1.1871e-6
+        self.params["ar"] = self.params["b"] ** 2 / self.params["S_wing"]  # aspect ratio
 
         with open(config_path) as config_file:
             self.cfg = json.load(config_file)
@@ -1202,14 +1199,14 @@ class PyFly:
         C_L_alpha_lin = self.params["C_L_0"] + self.params["C_L_alpha"] * alpha
 
         # Nonlinear version of lift coefficient with stall
-        a_0 = 0.2670
-        M = 50
-        e = 0.9935  # oswald efficiency
-        ar = self.params["b"] ** 2 / self.params["S_wing"]  # aspect ratio
-        C_D_p = 0.0102
-        C_m_fp = -0.2168
-        C_m_alpha = -0.2524
-        C_m_0 = 0.018
+        a_0 = self.params["a_0"]
+        M = self.params["M"]
+        e = self.params["e"]  # oswald efficiency
+        ar = self.params["ar"]
+        C_D_p = self.params["C_D_p"]
+        C_m_fp = self.params["C_m_fp"]
+        C_m_alpha = self.params["C_m_alpha"]
+        C_m_0 = self.params["C_m_0"]
 
         sigma = (1 + np.exp(-M * (alpha - a_0)) + np.exp(M * (alpha + a_0))) / (
                     (1 + np.exp(-M * (alpha - a_0))) * (1 + np.exp(M * (alpha + a_0))))
