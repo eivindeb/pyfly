@@ -122,10 +122,13 @@ Additionally, each state can be plotted by itself by calling its plot function.
 If you use this software, please cite:
 
 ```text
-@inproceedings{drl_attitude_control,
-    author={Bøhn, Eivind and Coates, Erlend M. and Moe, Signe and Johansen, Tor Arne},
-    title={Deep Reinforcement Learning Attitude Control of Fixed-Wing UAVs Using Proximal Policy Optimization},
-    year={2019},
+@inproceedings{bohn2019deep,
+  title={Deep Reinforcement Learning Attitude Control of Fixed-Wing UAVs Using Proximal Policy optimization},
+  author={B{\o}hn, Eivind and Coates, Erlend M and Moe, Signe and Johansen, Tor Ame},
+  booktitle={2019 International Conference on Unmanned Aircraft Systems (ICUAS)},
+  pages={523--533},
+  year={2019},
+  organization={IEEE}
 }
 ```
 
