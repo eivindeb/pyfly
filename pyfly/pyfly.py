@@ -864,7 +864,7 @@ class PyFly:
                           "elevator", "aileron", "rudder", "throttle"]
 
     def __init__(self,
-                 config_path=osp.join(osp.dirname(__file__), "pyfly_config_dev.json"),
+                 config_path=osp.join(osp.dirname(__file__), "pyfly_config.json"),
                  parameter_path=osp.join(osp.dirname(__file__), "x8_param.mat"),
                  config_kw=None):
         """
