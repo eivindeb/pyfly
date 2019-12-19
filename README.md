@@ -124,7 +124,7 @@ If you use this software, please cite:
 ```text
 @inproceedings{bohn2019deep,
   title={Deep Reinforcement Learning Attitude Control of Fixed-Wing UAVs Using Proximal Policy optimization},
-  author={B{\o}hn, Eivind and Coates, Erlend M and Moe, Signe and Johansen, Tor Ame},
+  author={B{\o}hn, Eivind and Coates, Erlend M and Moe, Signe and Johansen, Tor Arne},
   booktitle={2019 International Conference on Unmanned Aircraft Systems (ICUAS)},
   pages={523--533},
   year={2019},
