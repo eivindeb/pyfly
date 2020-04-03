@@ -642,7 +642,7 @@ class Wind:
         self.mag_max = mag_max
         self.steady = None
         self.components = []
-        self.turbulence_sim_length = 250
+        self.turbulence_sim_length = 300
 
         if self.turbulence:
             self.dryden = DrydenGustModel(self.turbulence_sim_length, dt, b, intensity=turbulence_intensity)
