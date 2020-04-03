@@ -100,7 +100,7 @@ class DrydenGustModel:
     def simulate(self, length, noise=None):
         t_span = [self.sim_length, self.sim_length + length]
 
-        t = np.linspace(t_span[0], t_span[1], (t_span[1] - t_span[0]) / self.dt)
+        t = np.linspace(t_span[0], t_span[1], int((t_span[1] - t_span[0]) / self.dt))
 
         if noise is None:
             noise = self.generate_noise(t.shape[0])
