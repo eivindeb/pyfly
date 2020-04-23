@@ -76,6 +76,8 @@ class DrydenGustModel:
         self.dt = dt
         self.sim_length = None
 
+        self.noise = None
+
         #self.noise = None
         self.vel_lin = None
         self.vel_ang = None
@@ -92,18 +94,26 @@ class DrydenGustModel:
 
         return noise
 
-    def reset(self):
+    def reset(self, noise=None):
         self.vel_lin = None
         self.vel_ang = None
         self.sim_length = 0
+        if noise is not None:
+            noise = noise * math.sqrt(math.pi / self.dt)
+        self.noise = noise
 
-    def simulate(self, length, noise=None):
+    def simulate(self, length):
         t_span = [self.sim_length, self.sim_length + length]
 
         t = np.linspace(t_span[0] * self.dt, t_span[1] * self.dt, length)
 
-        if noise is None:
+        if self.noise is None:
             noise = self.generate_noise(t.shape[0])
+        else:
+            if self.noise.shape[-1] >= length:
+                noise = self.noise[:, :length]
+            elif self.noise.shape[-1] < length:
+                noise = np.pad(self.noise, ((0, 0), (0, length - self.noise.shape[-1])), mode="wrap")
 
         vel_lin = np.array([self.H_u.output(noise[0], t)[1],
                                    self.H_v.output(noise[1], t)[1],

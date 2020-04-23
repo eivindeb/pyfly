@@ -661,7 +661,7 @@ class Wind:
         if self.turbulence:
             self.dryden.seed(seed)
 
-    def reset(self, value=None):
+    def reset(self, value=None, noise=None):
         """
         Reset wind object to initial state
 
@@ -685,7 +685,7 @@ class Wind:
                 value = [w_n, w_e, w_d]
 
         if self.turbulence:
-            self.dryden.reset()
+            self.dryden.reset(noise)
 
         self.steady = value
         for i, comp in enumerate(self.components):
@@ -991,7 +991,7 @@ class PyFly:
 
         self.wind.seed(seed)
 
-    def reset(self, state=None):
+    def reset(self, state=None, turbulence_noise=None):
         """
         Reset state of simulator. Must be called before first use.
 
@@ -1013,7 +1013,7 @@ class PyFly:
                 wind_init = state["wind"]
             elif all([comp in state for comp in ["wind_n", "wind_e", "wind_d"]]):
                 wind_init = [state["wind_n"], state["wind_e"], state["wind_d"]]
-        self.wind.reset(wind_init)
+        self.wind.reset(wind_init, turbulence_noise)
 
         Theta = self.get_states_vector(["roll", "pitch", "yaw"])
         vel = np.array(self.get_states_vector(["velocity_u", "velocity_v", "velocity_w"]))
