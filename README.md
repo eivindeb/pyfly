@@ -63,6 +63,8 @@ The system settings consists of the following arguments, of which all are requir
 * **turbulence** Boolean. Controls if turbulence (from Dryden Turbulence Model) is enabled.
 * **turbulence_intensity** String. If turbulence is enabled, controls the intensity of the turbulence as described in the Dryden
 Turbulence Model. One of "light", "moderate", "severe".
+* **turbulunce_sim_length** Int. How many steps that are simulated for each call to the Dryden Turbulence Model. 
+Higher values gives more upfront computation cost but better overall performance for longer simulations.
 
 ### States
 All states used in the simulator must be declared in the states block. The simulator wont run without the states in 
@@ -134,6 +136,19 @@ If you use this software, please cite:
 
 ## Changelog
 
+### Release 0.1.2 (2020-04-23)
+
+---
+
+* Reworked Dryden Turbulence Model.
+    * Refactored code, adding docstrings to functions.
+    * Changed method for specifying white noise input to shaping filter to allow for deterministic outputs.
+    * Fix bug where filters were simulated for more steps than intended.
+    * Fix bug where wrong white noise input were provided to the omega_q and omega_r shaping filters.
+    * Added parameter for turbulence simulation length in configuration file.
+
+* Updated README.
+
 ### Release 0.1.1 (2019-08-20)
 
 ---
@@ -149,7 +164,7 @@ the specified energy states, allowing them to be inspected and plotted.
 * Target bounds can now be specified for variable plot. When the state value is within the bound of the target value,
 the bound area will be shaded with the lines' color.
 
-* Updated Readme and example.
+* Updated README and example.
 
 
 
