@@ -626,7 +626,7 @@ class AttitudeQuaternion:
 
 
 class Wind:
-    def __init__(self, turbulence, mag_min=None, mag_max=None, b=None, turbulence_intensity=None, dt=None):
+    def __init__(self, turbulence, mag_min=None, mag_max=None, b=None, turbulence_intensity=None, sim_length=300, dt=None):
         """
         Wind and turbulence object used by PyFly.
 
@@ -642,7 +642,7 @@ class Wind:
         self.mag_max = mag_max
         self.steady = None
         self.components = []
-        self.turbulence_sim_length = 300
+        self.turbulence_sim_length = sim_length
 
         if self.turbulence:
             self.dryden = DrydenGustModel(self.turbulence_sim_length, dt, b, intensity=turbulence_intensity)
@@ -929,6 +929,7 @@ class PyFly:
         self.g = self.cfg["g"]
         self.wind = Wind(mag_min=self.cfg["wind_magnitude_min"], mag_max=self.cfg["wind_magnitude_max"],
                          turbulence=self.cfg["turbulence"], turbulence_intensity=self.cfg["turbulence_intensity"],
+                         sim_length=self.cfg.get("turbulence_sim_length", 300),
                          dt=self.cfg["dt"], b=self.params["b"])
 
         self.state["attitude"] = AttitudeQuaternion()

@@ -6,6 +6,7 @@
   "wind_magnitude_max": 0,
   "turbulence": false,
   "turbulence_intensity": "light",
+  "turbulence_sim_length": 300,
   "variables": [
     {
       "name": "roll",
