@@ -5,12 +5,23 @@ import math
 
 class Filter:
     def __init__(self, num, den):
+        """
+        Wrapper for the scipy LTI system class.
+        :param num: numerator of transfer function
+        :param den: denominator of transfer function
+        """
         self.filter = lti(num, den)
         self.x = None
         self.y = None
         self.t = None
 
     def simulate(self, u, t):
+        """
+        Simulate filter
+        :param u: filter input
+        :param t: time steps for which to simulate
+        :return: filter output
+        """
         if self.x is None:
             x_0 = None
         else:
@@ -21,6 +32,10 @@ class Filter:
         return self.y
 
     def reset(self):
+        """
+        Reset filter
+        :return:
+        """
         self.x = None
         self.y = None
         self.t = None

@@ -13,7 +13,7 @@ by wind tunnel testing is included for the Skywalker X8 UAV, courtesy of <https:
 Aerodynamic coefficients in PyFly contain nonlinear extensions in angle of attack and sideslip angle, designed with 
 Newtonian flat-plate-theory, in an effort to extend model-validity in the state space and incorporate effects such as stall:
 
-![alt text](examples/coefficients.png "Angle of attack")![alt text](examples/cd_beta.png "sideslip angle")
+![AoA coefficients](examples/coefficients.png "Angle of attack")![Sideslip coefficients](examples/cd_beta.png "sideslip angle")
 
 ## Example
 
@@ -46,7 +46,7 @@ sim.render(block=True)
 
 Rendering this scenario produces:
 
-![alt text](examples/render.png "render result")
+![Render result](examples/render.png "render result")
 
 ## Documentation
 PyFly is highly configurable through its config json file. For a description of functions and their use, see the 
