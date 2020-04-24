@@ -1,12 +1,12 @@
 from setuptools import setup
 
 setup(
-    name='pyfly',
+    name='pyfly-fixed-wing',
     version='0.1.2',
     url="https://github.com/eivindeb/pyfly",
     author="Eivind Bøhn",
     author_email="eivind.bohn@gmail.com",
-    description="Fixed-Wing Flight Simulator",
+    description="Python Fixed-Wing Flight Simulator",
     packages=["pyfly"],
     package_data={"pyfly": ["x8_param.mat", "pyfly_config.json"]},
     license='MIT',
