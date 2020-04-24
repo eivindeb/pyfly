@@ -1,14 +1,10 @@
 # PyFly - Python Fixed Wing Flight Simulator
-PyFly is a python implementation of a 6 DOF aerodynamic model for fixed wing aircraft. PyFly uses
+PyFly is a python implementation of a 6 DOF aerodynamic model for fixed wing aircraft. The base aircraft parameters must be specified through a parameter file, an example of such a file that is experimentally verified
+by wind tunnel testing is included for the Skywalker X8 UAV, courtesy of <https://github.com/krisgry/x8>. PyFly uses
 quaternions internally for performance reasons and to avoid singularities, while constraints and initial conditions can be
-specified in euler angles for convenience.
-
-PyFly simulates the effects of wind and stochastic turbulence, modeled with the Dryden turbulence model.
-
-A simple PID-controller tuned to the Skywalker X8 UAV is included for convenience and sanity checks.
-
-The base aircraft parameters must be specified through a parameter file. An example of such a file experimentally verified
-by wind tunnel testing is included for the Skywalker X8 UAV, courtesy of <https://github.com/krisgry/x8>.
+specified in euler angles for convenience. PyFly also simulates the effects of wind and stochastic turbulence, 
+modeled with the Dryden turbulence model. A simple PID-controller tuned to the Skywalker X8 UAV is included for convenience
+ and sanity checks.
 
 Aerodynamic coefficients in PyFly contain nonlinear extensions in angle of attack and sideslip angle, designed with 
 Newtonian flat-plate-theory, in an effort to extend model-validity in the state space and incorporate effects such as stall:
@@ -47,6 +43,18 @@ sim.render(block=True)
 Rendering this scenario produces:
 
 ![Render result](examples/render.png "render result")
+
+## Installation
+PyFly is available through PyPI at pyfly-fixed-wing:
+```shell
+pip install pyfly-fixed-wing
+```
+Or, it can be installed from source:
+```shell
+git clone https://github.com/eivindeb/pyfly
+cd pyfly
+pip install -e .
+```
 
 ## Documentation
 PyFly is highly configurable through its config json file. For a description of functions and their use, see the 
@@ -148,6 +156,8 @@ If you use this software, please cite:
     * Added parameter for turbulence simulation length in configuration file.
 
 * Updated README.
+
+* PyFly is now available on PyPI under the name [pyfly-fixed-wing](https://pypi.org/project/pyfly-fixed-wing/).
 
 ### Release 0.1.1 (2019-08-20)
 
