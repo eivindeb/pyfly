@@ -4,7 +4,8 @@ by wind tunnel testing is included for the Skywalker X8 UAV, courtesy of <https:
 quaternions internally for performance reasons and to avoid singularities, while constraints and initial conditions can be
 specified in euler angles for convenience. PyFly also simulates the effects of wind and stochastic turbulence, 
 modeled with the Dryden turbulence model. A simple PID-controller tuned to the Skywalker X8 UAV is included for convenience
- and sanity checks.
+ and sanity checks. The [gym environment wrapper](https://github.com/eivindeb/fixed-wing-gym) further extends the functionality of the 
+ PyFly simulator and allows for integration with reinforcement learning libraries.
 
 Aerodynamic coefficients in PyFly contain nonlinear extensions in angle of attack and sideslip angle, designed with 
 Newtonian flat-plate-theory, in an effort to extend model-validity in the state space and incorporate effects such as stall:
