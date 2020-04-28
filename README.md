@@ -1,19 +1,16 @@
 # PyFly - Python Fixed Wing Flight Simulator
-PyFly is a python implementation of a 6 DOF aerodynamic model for fixed wing aircraft. PyFly uses
+PyFly is a python implementation of a 6 DOF aerodynamic model for fixed wing aircraft. The base aircraft parameters must be specified through a parameter file, an example of such a file that is experimentally verified
+by wind tunnel testing is included for the Skywalker X8 UAV, courtesy of <https://github.com/krisgry/x8>. PyFly uses
 quaternions internally for performance reasons and to avoid singularities, while constraints and initial conditions can be
-specified in euler angles for convenience.
-
-PyFly simulates the effects of wind and stochastic turbulence, modeled with the Dryden turbulence model.
-
-A simple PID-controller tuned to the Skywalker X8 UAV is included for convenience and sanity checks.
-
-The base aircraft parameters must be specified through a parameter file. An example of such a file experimentally verified
-by wind tunnel testing is included for the Skywalker X8 UAV, courtesy of <https://github.com/krisgry/x8>.
+specified in euler angles for convenience. PyFly also simulates the effects of wind and stochastic turbulence, 
+modeled with the Dryden turbulence model. A simple PID-controller tuned to the Skywalker X8 UAV is included for convenience
+ and sanity checks. The [gym environment wrapper](https://github.com/eivindeb/fixed-wing-gym) further extends the functionality of the 
+ PyFly simulator and allows for integration with reinforcement learning libraries.
 
 Aerodynamic coefficients in PyFly contain nonlinear extensions in angle of attack and sideslip angle, designed with 
 Newtonian flat-plate-theory, in an effort to extend model-validity in the state space and incorporate effects such as stall:
 
-![alt text](examples/coefficients.png "Angle of attack")![alt text](examples/cd_beta.png "sideslip angle")
+![AoA coefficients](examples/coefficients.png "Angle of attack")![Sideslip coefficients](examples/cd_beta.png "sideslip angle")
 
 ## Example
 
@@ -36,7 +33,7 @@ for step_i in range(500):
     omega = [sim.state["omega_p"].value, sim.state["omega_q"].value, sim.state["omega_r"].value]
 
     action = pid.get_action(phi, theta, Va, omega)
-    success = sim.step(action)
+    success, step_info = sim.step(action)
 
     if not success:
         break
@@ -46,7 +43,19 @@ sim.render(block=True)
 
 Rendering this scenario produces:
 
-![alt text](examples/render.png "render result")
+![Render result](examples/render.png "render result")
+
+## Installation
+PyFly is available through PyPI at pyfly-fixed-wing:
+```shell
+pip install pyfly-fixed-wing
+```
+Or, it can be installed from source:
+```shell
+git clone https://github.com/eivindeb/pyfly
+cd pyfly
+pip install -e .
+```
 
 ## Documentation
 PyFly is highly configurable through its config json file. For a description of functions and their use, see the 
@@ -63,6 +72,8 @@ The system settings consists of the following arguments, of which all are requir
 * **turbulence** Boolean. Controls if turbulence (from Dryden Turbulence Model) is enabled.
 * **turbulence_intensity** String. If turbulence is enabled, controls the intensity of the turbulence as described in the Dryden
 Turbulence Model. One of "light", "moderate", "severe".
+* **turbulunce_sim_length** Int. How many steps that are simulated for each call to the Dryden Turbulence Model. 
+Higher values gives more upfront computation cost but better overall performance for longer simulations.
 
 ### States
 All states used in the simulator must be declared in the states block. The simulator wont run without the states in 
@@ -124,7 +135,7 @@ If you use this software, please cite:
 ```text
 @inproceedings{bohn2019deep,
   title={Deep Reinforcement Learning Attitude Control of Fixed-Wing UAVs Using Proximal Policy optimization},
-  author={B{\o}hn, Eivind and Coates, Erlend M and Moe, Signe and Johansen, Tor Ame},
+  author={B{\o}hn, Eivind and Coates, Erlend M and Moe, Signe and Johansen, Tor Arne},
   booktitle={2019 International Conference on Unmanned Aircraft Systems (ICUAS)},
   pages={523--533},
   year={2019},
@@ -133,6 +144,21 @@ If you use this software, please cite:
 ```
 
 ## Changelog
+
+### Release 0.1.2 (2020-04-23)
+
+---
+
+* Reworked Dryden Turbulence Model.
+    * Refactored code, adding docstrings to functions.
+    * Changed method for specifying white noise input to shaping filter to allow for deterministic outputs.
+    * Fix bug where filters were simulated for more steps than intended.
+    * Fix bug where wrong white noise input were provided to the omega_q and omega_r shaping filters.
+    * Added parameter for turbulence simulation length in configuration file.
+
+* Updated README.
+
+* PyFly is now available on PyPI under the name [pyfly-fixed-wing](https://pypi.org/project/pyfly-fixed-wing/).
 
 ### Release 0.1.1 (2019-08-20)
 
@@ -149,7 +175,7 @@ the specified energy states, allowing them to be inspected and plotted.
 * Target bounds can now be specified for variable plot. When the state value is within the bound of the target value,
 the bound area will be shaded with the lines' color.
 
-* Updated Readme and example.
+* Updated README and example.
 
 
 

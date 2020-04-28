@@ -626,7 +626,7 @@ class AttitudeQuaternion:
 
 
 class Wind:
-    def __init__(self, turbulence, mag_min=None, mag_max=None, b=None, turbulence_intensity=None, dt=None):
+    def __init__(self, turbulence, mag_min=None, mag_max=None, b=None, turbulence_intensity=None, sim_length=300, dt=None):
         """
         Wind and turbulence object used by PyFly.
 
@@ -642,7 +642,7 @@ class Wind:
         self.mag_max = mag_max
         self.steady = None
         self.components = []
-        self.turbulence_sim_length = 250
+        self.turbulence_sim_length = sim_length
 
         if self.turbulence:
             self.dryden = DrydenGustModel(self.turbulence_sim_length, dt, b, intensity=turbulence_intensity)
@@ -661,7 +661,7 @@ class Wind:
         if self.turbulence:
             self.dryden.seed(seed)
 
-    def reset(self, value=None):
+    def reset(self, value=None, noise=None):
         """
         Reset wind object to initial state
 
@@ -685,7 +685,7 @@ class Wind:
                 value = [w_n, w_e, w_d]
 
         if self.turbulence:
-            self.dryden.reset()
+            self.dryden.reset(noise)
 
         self.steady = value
         for i, comp in enumerate(self.components):
@@ -864,7 +864,7 @@ class PyFly:
                           "elevator", "aileron", "rudder", "throttle"]
 
     def __init__(self,
-                 config_path=osp.join(osp.dirname(__file__), "pyfly_config_dev.json"),
+                 config_path=osp.join(osp.dirname(__file__), "pyfly_config.json"),
                  parameter_path=osp.join(osp.dirname(__file__), "x8_param.mat"),
                  config_kw=None):
         """
@@ -929,6 +929,7 @@ class PyFly:
         self.g = self.cfg["g"]
         self.wind = Wind(mag_min=self.cfg["wind_magnitude_min"], mag_max=self.cfg["wind_magnitude_max"],
                          turbulence=self.cfg["turbulence"], turbulence_intensity=self.cfg["turbulence_intensity"],
+                         sim_length=self.cfg.get("turbulence_sim_length", 300),
                          dt=self.cfg["dt"], b=self.params["b"])
 
         self.state["attitude"] = AttitudeQuaternion()
@@ -991,7 +992,7 @@ class PyFly:
 
         self.wind.seed(seed)
 
-    def reset(self, state=None):
+    def reset(self, state=None, turbulence_noise=None):
         """
         Reset state of simulator. Must be called before first use.
 
@@ -1013,7 +1014,7 @@ class PyFly:
                 wind_init = state["wind"]
             elif all([comp in state for comp in ["wind_n", "wind_e", "wind_d"]]):
                 wind_init = [state["wind_n"], state["wind_e"], state["wind_d"]]
-        self.wind.reset(wind_init)
+        self.wind.reset(wind_init, turbulence_noise)
 
         Theta = self.get_states_vector(["roll", "pitch", "yaw"])
         vel = np.array(self.get_states_vector(["velocity_u", "velocity_v", "velocity_w"]))
@@ -1444,7 +1445,7 @@ if __name__ == "__main__":
         omega = [pfly.state["omega_p"].value, pfly.state["omega_q"].value, pfly.state["omega_r"].value]
 
         action = pid.get_action(phi, theta, Va, omega)
-        success = pfly.step(action)
+        success, step_info = pfly.step(action)
 
         if not success:
             break
