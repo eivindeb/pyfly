@@ -1056,9 +1056,15 @@ class PyFly:
         :param state: (dict) set initial value of states to given value.
         """
         self.cur_sim_step = 0
+        airspeed_init = False
+
+        if state is not None and all([var_name in state for var_name in ["Va", "alpha", "beta"]]):
+            airspeed_init = True
 
         for name, var in self.state.items():
-            if name in ["Va", "alpha", "beta", "attitude"] or "wind" in name or "energy" in name or isinstance(var, ControlVariable):
+            if isinstance(var, ControlVariable) or "wind" in name or "energy" in name or name == "attitude" or \
+                (not airspeed_init and name in ["Va", "alpha", "beta"]) or \
+                    (airspeed_init and name in ["velocity_u", "velocity_v", "velocity_w"]):
                 continue
             var_init = state[name] if state is not None and name in state else None
             var.reset(value=var_init)
@@ -1074,12 +1080,18 @@ class PyFly:
         self.wind.reset(wind_init, turbulence_noise)
 
         Theta = self.get_states_vector(["roll", "pitch", "yaw"])
-        vel = np.array(self.get_states_vector(["velocity_u", "velocity_v", "velocity_w"]))
-
-        Va, alpha, beta = self._calculate_airspeed_factors(Theta, vel)
-        self.state["Va"].reset(Va)
-        self.state["alpha"].reset(alpha)
-        self.state["beta"].reset(beta)
+        if airspeed_init:
+            Va, alpha, beta = self.get_states_vector(["Va", "alpha", "beta"])
+            u, v, w = self._calculate_linear_velocities(Theta, Va, alpha, beta)
+            self.state["velocity_u"].reset(u)
+            self.state["velocity_v"].reset(v)
+            self.state["velocity_w"].reset(w)
+        else:
+            vel = np.array(self.get_states_vector(["velocity_u", "velocity_v", "velocity_w"]))
+            Va, alpha, beta = self._calculate_airspeed_factors(Theta, vel)
+            self.state["Va"].reset(Va)
+            self.state["alpha"].reset(alpha)
+            self.state["beta"].reset(beta)
 
         self.state["attitude"].reset(Theta)
 
@@ -1459,6 +1471,32 @@ class PyFly:
         beta = np.arcsin(airspeed_vec[1] / Va)
 
         return Va, alpha, beta
+
+    def _calculate_linear_velocities(self, attitude, Va, alpha, beta):
+        """
+        Calculate the linear velocities (velocity_u, velocity_v, velocity_w) from attitude, Airspeed (Va),
+        Angle of Attack (alpha) and sideslip angle (beta).
+
+        :param attitude: ([float]) attitude quaternion
+        :param Va: (float) Airspeed
+        :param alpha: (float) Angle of attack
+        :param beta: (float) sideslip angle
+        :return: ([float]) linear velocities velocity_u, velocity_v, velocity_w
+        """
+        if self.wind.turbulence:
+            turbulence = self.wind.get_turbulence_linear(self.cur_sim_step)
+        else:
+            turbulence = np.zeros(3)
+
+        wind_vec = np.dot(self._rot_b_v(attitude), self.wind.steady) + turbulence
+        v_r = np.sin(beta) * Va
+        u_r = np.sqrt(Va ** 2 - v_r ** 2) / np.sqrt(1 + np.tan(alpha) ** 2)
+        w_r = np.tan(alpha) * u_r
+        u = u_r + wind_vec[0]
+        v = v_r + wind_vec[1]
+        w = w_r + wind_vec[2]
+
+        return u, v, w
 
     def _set_states_from_ode_solution(self, ode_sol, save):
         """
