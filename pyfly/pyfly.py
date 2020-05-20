@@ -10,8 +10,28 @@ import matplotlib.gridspec
 
 class ConstraintException(Exception):
     def __init__(self, variable, value, limit):
-        self.message = "Constraint on {} violated ({}/{})".format(variable, value, limit)
-        self.variable = variable
+        self.message = []
+        self.variable = []
+        self.add_variable(variable, "Constraint on {} violated ({}/{})".format(variable, value, limit))
+
+    def add_variable(self, variable, message):
+        if isinstance(message, list):
+            self.message.extend(message)
+        else:
+            self.message.append(message)
+        self.variable.append(variable)
+
+
+def try_catch_constraint_exception(exception, operation, *args, **kwargs):
+    try:
+        operation(*args, **kwargs)
+    except ConstraintException as e:
+        if exception is None:
+            exception = e
+        else:
+            exception.add_variable(e.variable, e.message)
+
+    return exception
 
 
 class Variable:
@@ -78,7 +98,7 @@ class Variable:
             except TypeError:
                 raise Exception("Variable init_min and init_max can not be None if no value is provided on reset")
         else:
-            value = self.apply_conditions(value)
+            value = self.apply_limits(value)
 
         self.value = value
 
@@ -92,26 +112,32 @@ class Variable:
         """
         self.np_random = np.random.RandomState(seed)
 
-    def apply_conditions(self, value):
+    def apply_limits(self, value):
         """
-        Apply state limits and constraints to value. Will raise ConstraintException if constraints are violated
+        Clip value to state limits.
 
-        :param value: (float) value to which limits and constraints are applied
-        :return: (float) value after applying limits and constraints
+        :param value: (float) value to which limits are applied
+        :return: (float) value after applying limits
+        """
+        if self.wrap and np.abs(value) > np.pi:
+            value = np.sign(value) * (np.abs(value) % np.pi - np.pi)
+
+        if self.value_min is not None or self.value_max is not None:
+            value = np.clip(value, self.value_min, self.value_max)
+
+        return value
+
+    def check_constraints(self, value):
+        """
+        Test value against state constraints. Will raise ConstraintException if constraints are violated.
+
+        :param value: (float) value constraints are tested against
         """
         if self.constraint_min is not None and value < self.constraint_min:
             raise ConstraintException(self.name, value, self.constraint_min)
 
         if self.constraint_max is not None and value > self.constraint_max:
             raise ConstraintException(self.name, value, self.constraint_max)
-
-        if self.value_min is not None or self.value_max is not None:
-            value = np.clip(value, self.value_min, self.value_max)
-
-        if self.wrap and np.abs(value) > np.pi:
-            value = np.sign(value) * (np.abs(value) % np.pi - np.pi)
-
-        return value
 
     def set_value(self, value, save=True):
         """
@@ -121,12 +147,20 @@ class Variable:
         :param value: (float) new value of state
         :param save: (bool) whether to commit value to history of state
         """
-        value = self.apply_conditions(value)
+        exception = None
+        try:
+            self.check_constraints(value)
+        except Exception as e:
+            exception = e
 
+        value = self.apply_limits(value)
         if save:
             self.history.append(value)
 
         self.value = value
+
+        if exception is not None:
+            raise exception
 
     def plot(self, axis=None, y_unit=None, target=None, plot_id=None, **plot_kw):
         """
@@ -254,7 +288,7 @@ class ControlVariable(Variable):
             self.value = 0
         self.plot_quantity = "value"
 
-    def apply_conditions(self, values):
+    def apply_limits(self, value):
         """
         Apply state limits and constraints to value. Will raise ConstraintException if constraints are violated
 
@@ -262,13 +296,14 @@ class ControlVariable(Variable):
         :return: (float) value after applying limits and constraints
         """
         try:
-            value, dot = values
+            value, dot = value
         except:
-            value, dot = values, 0
-        value = super().apply_conditions(value)
+            value, dot = value, 0
 
         if self.dot_max is not None:
             dot = np.clip(dot, -self.dot_max, self.dot_max)
+
+        value = super().apply_limits(value)
 
         return [value, dot]
 
@@ -278,7 +313,8 @@ class ControlVariable(Variable):
 
         :param command: setpoint for actuator
         """
-        command = super().apply_conditions(command)
+        super().check_constraints(command)
+        command = super().apply_limits(command)
         self.command = command
         self.history["command"].append(command)
 
@@ -294,7 +330,8 @@ class ControlVariable(Variable):
             if value is None:
                 value = self.np_random.uniform(self.init_min, self.init_max), 0
             else:
-                value = self.apply_conditions(value)
+                #super().check_constraints(value) Trust user input?
+                value = self.apply_limits(value)
 
             self.value = value[0]
             self.dot = value[1]
@@ -317,7 +354,19 @@ class ControlVariable(Variable):
         :param value: (float) new value and derivative of state
         :param save: (bool) whether to commit value to history of state
         """
-        value, dot = self.apply_conditions(value)
+        try:
+            value, dot = value
+        except:
+            value, dot = value, 0
+
+        exception = None
+
+        try:
+            self.check_constraints(value)
+        except Exception as e:
+            exception = e
+
+        value, dot = self.apply_limits([value, dot])
 
         self.value = value
         self.dot = dot
@@ -325,6 +374,9 @@ class ControlVariable(Variable):
         if save:
             self.history["value"].append(value)
             self.history["dot"].append(dot)
+
+        if exception is not None:
+            raise exception
 
     def _get_plot_x_y_data(self):
         """
@@ -411,16 +463,20 @@ class Actuation:
         :param save: (bool) whether to commit values to state history
         :return:
         """
+
+        exception = None
         for i, state in enumerate(self.dynamics):
-            self.states[state].set_value((values[i], values[len(self.dynamics) + i]), save=save)
+            exception = try_catch_constraint_exception(exception, self.states[state].set_value, (values[i], values[len(self.dynamics) + i]), save=save)
 
         # Simulator model operates on elevator and aileron angles, if aircraft has elevon dynamics need to map
         if self.elevon_dynamics:
             elevator, aileron = self._map_elevon_to_elevail(er=self.states["elevon_right"].value,
                                                             el=self.states["elevon_left"].value)
+            exception = try_catch_constraint_exception(exception, self.states["aileron"].set_value, (aileron, 0), save=save)
+            exception = try_catch_constraint_exception(exception, self.states["elevator"].set_value, (elevator, 0), save=save)
 
-            self.states["aileron"].set_value((aileron, 0), save=save)
-            self.states["elevator"].set_value((elevator, 0), save=save)
+        if exception is not None:
+            raise exception
 
     def add_state(self, state):
         """
@@ -915,6 +971,7 @@ class PyFly:
             set_config_attrs(self.cfg, config_kw)
 
         self.state = {}
+        self._partial_sol = None
         self.attitude_states = ["roll", "pitch", "yaw"]
         self.actuator_states = ["elevator", "aileron", "rudder", "throttle", "elevon_left", "elevon_right"]
         self.model_inputs = ["elevator", "aileron", "rudder", "throttle"]
@@ -1075,6 +1132,7 @@ class PyFly:
         """
         success = True
         info = {}
+        constraint_exception = None
 
         # Record command history and apply conditions on actuator setpoints
         control_inputs = self.actuation.set_and_constrain_commands(commands)
@@ -1086,25 +1144,27 @@ class PyFly:
         y0 = np.array(y0)
 
         try:
-            sol = scipy.integrate.solve_ivp(fun=lambda t, y: self._dynamics(t, y), t_span=(0, self.dt),
-                                            y0=y0)
-            self._set_states_from_ode_solution(sol.y[:, -1], save=True)
-
-            Theta = self.get_states_vector(["roll", "pitch", "yaw"])
-            vel = np.array(self.get_states_vector(["velocity_u", "velocity_v", "velocity_w"]))
-
-            Va, alpha, beta = self._calculate_airspeed_factors(Theta, vel)
-            self.state["Va"].set_value(Va)
-            self.state["alpha"].set_value(alpha)
-            self.state["beta"].set_value(beta)
-
-            for energy_state in self.energy_states:
-                self.state[energy_state].set_value(self.state[energy_state].calculate_value(), save=True)
-
-            self.wind.set_value(self.cur_sim_step)
+            sol = scipy.integrate.solve_ivp(fun=lambda t, y: self._dynamics(t, y), t_span=(0, self.dt), y0=y0)
+            self._partial_sol = sol.y[:, -1]
         except ConstraintException as e:
+            constraint_exception = e
+
+        constraint_exception = try_catch_constraint_exception(constraint_exception, self._set_states_from_ode_solution, self._partial_sol, save=True)
+
+        Theta = self.get_states_vector(["roll", "pitch", "yaw"])
+        vel = np.array(self.get_states_vector(["velocity_u", "velocity_v", "velocity_w"]))
+
+        for name, val in zip(["Va", "alpha", "beta"], self._calculate_airspeed_factors(Theta, vel)):
+            constraint_exception = try_catch_constraint_exception(constraint_exception, self.state[name].set_value, val)
+
+        for energy_state in self.energy_states:
+            constraint_exception = try_catch_constraint_exception(constraint_exception, self.state[energy_state].set_value, self.state[energy_state].calculate_value(), save=True)
+
+        self.wind.set_value(self.cur_sim_step)
+
+        if constraint_exception is not None:
             success = False
-            info = {"termination": e.variable}
+            info = {"termination": constraint_exception.variable}
 
         self.cur_sim_step += 1
 
@@ -1150,6 +1210,7 @@ class PyFly:
 
         if t > 0:
             self._set_states_from_ode_solution(y, save=False)
+            self._partial_sol = y
 
         attitude = y[:4]
 
@@ -1187,9 +1248,13 @@ class PyFly:
 
         Va, alpha, beta = self._calculate_airspeed_factors(attitude, vel)
 
-        Va = self.state["Va"].apply_conditions(Va)
-        alpha = self.state["alpha"].apply_conditions(alpha)
-        beta = self.state["beta"].apply_conditions(beta)
+        self.state["Va"].check_constraints(Va)
+        self.state["alpha"].check_constraints(alpha)
+        self.state["beta"].check_constraints(beta)
+
+        Va = self.state["Va"].apply_limits(Va)
+        alpha = self.state["alpha"].apply_limits(alpha)
+        beta = self.state["beta"].apply_limits(beta)
 
         pre_fac = 0.5 * self.rho * Va ** 2 * self.params["S_wing"]
 
@@ -1403,26 +1468,22 @@ class PyFly:
         :param save: (bool) whether to save values to state history, i.e. whether solution represents final step
         solution or intermediate values during integration.
         """
+        constraint_exception = None
         self.state["attitude"].set_value(ode_sol[:4] / np.linalg.norm(ode_sol[:4]))
         if save:
             euler_angles = self.state["attitude"].as_euler_angle()
-            self.state["roll"].set_value(euler_angles["roll"], save=save)
-            self.state["pitch"].set_value(euler_angles["pitch"], save=save)
-            self.state["yaw"].set_value(euler_angles["yaw"], save=save)
+            constraint_exception = try_catch_constraint_exception(constraint_exception, self.state["roll"].set_value, euler_angles["roll"], save=save)
+            constraint_exception = try_catch_constraint_exception(constraint_exception, self.state["pitch"].set_value, euler_angles["pitch"], save=save)
+            constraint_exception = try_catch_constraint_exception(constraint_exception, self.state["yaw"].set_value, euler_angles["yaw"], save=save)
         else:
             for state in self.attitude_states_with_constraints:
-                self.state[state].set_value(self.state["attitude"].as_euler_angle(state))
+                constraint_exception = try_catch_constraint_exception(constraint_exception, self.state[state].set_value, self.state["attitude"].as_euler_angle(state))
         start_i = 4
 
-        self.state["omega_p"].set_value(ode_sol[start_i], save=save)
-        self.state["omega_q"].set_value(ode_sol[start_i + 1], save=save)
-        self.state["omega_r"].set_value(ode_sol[start_i + 2], save=save)
-        self.state["position_n"].set_value(ode_sol[start_i + 3], save=save)
-        self.state["position_e"].set_value(ode_sol[start_i + 4], save=save)
-        self.state["position_d"].set_value(ode_sol[start_i + 5], save=save)
-        self.state["velocity_u"].set_value(ode_sol[start_i + 6], save=save)
-        self.state["velocity_v"].set_value(ode_sol[start_i + 7], save=save)
-        self.state["velocity_w"].set_value(ode_sol[start_i + 8], save=save)
+        variables = ["omega_p", "omega_q", "omega_r", "position_n", "position_e", "position_d", "velocity_u", "velocity_v", "velocity_w"]
+        for i, var_name in enumerate(variables):
+            constraint_exception = try_catch_constraint_exception(constraint_exception, self.state[var_name].set_value, ode_sol[start_i + i], save=save)
+
         self.actuation.set_states(ode_sol[start_i + 9:], save=save)
 
 
