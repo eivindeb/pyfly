@@ -949,20 +949,8 @@ class PyFly:
         else:
             raise Exception("Unsupported parameter file extension.")
 
-        self.I = np.array([[self.params["Jx"], 0, -self.params["Jxz"]],
-                           [0, self.params["Jy"], 0, ],
-                           [-self.params["Jxz"], 0, self.params["Jz"]]
-                           ])
+        self._set_inertia_matrix()
 
-        self.gammas = [self.I[0, 0] * self.I[2, 2] - self.I[0, 2] ** 2]
-        self.gammas.append((np.abs(self.I[0, 2]) * (self.I[0, 0] - self.I[1, 1] + self.I[2, 2])) / self.gammas[0])
-        self.gammas.append((self.I[2, 2] * (self.I[2, 2] - self.I[1, 1]) + self.I[0, 2] ** 2) / self.gammas[0])
-        self.gammas.append(self.I[2, 2] / self.gammas[0])
-        self.gammas.append(np.abs(self.I[0, 2]) / self.gammas[0])
-        self.gammas.append((self.I[2, 2] - self.I[0, 0]) / self.I[1, 1])
-        self.gammas.append(np.abs(self.I[0, 2]) / self.I[1, 1])
-        self.gammas.append(((self.I[0, 0] - self.I[1, 1]) * self.I[0, 0] + self.I[0, 2] ** 2) / self.gammas[0])
-        self.gammas.append(self.I[0, 0] / self.gammas[0])
 
         self.params["ar"] = self.params["b"] ** 2 / self.params["S_wing"]  # aspect ratio
 
@@ -1100,6 +1088,8 @@ class PyFly:
 
         for energy_state in self.energy_states:
             self.state[energy_state].reset(self.state[energy_state].calculate_value())
+
+        self._set_inertia_matrix()
 
     def render(self, mode="plot", close=False, viewer=None, targets=None, block=False):
         """
