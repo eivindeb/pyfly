@@ -255,7 +255,7 @@ class Variable:
 
 
 class ControlVariable(Variable):
-    def __init__(self, order=None, tau=None, omega_0=None, zeta=None, dot_max=None, disabled=False, **kwargs):
+    def __init__(self, dt=None, order=None, tau=None, omega_0=None, zeta=None, dot_max=None, disabled=False, **kwargs):
         """
         PyFly actuator state variable.
 
@@ -267,7 +267,7 @@ class ControlVariable(Variable):
         :param disabled: (bool) if actuator is disabled for aircraft, e.g. aircraft has no rudder
         :param kwargs: (dict) keyword arguments for Variable class
         """
-        assert (disabled or (order == 1 or order == 2))
+        assert (disabled or (order in [0, 1, 2]))
         super().__init__(**kwargs)
         self.order = order
         self.tau = tau
@@ -275,7 +275,9 @@ class ControlVariable(Variable):
         self.zeta = zeta
         self.dot_max = dot_max
 
-        if order == 1:
+        if order == 0:  # 1-1 mapping
+            self.coefs = [[-1 / dt, 0, 1 / dt], [0, 0, 0]]
+        elif order == 1:
             assert (tau is not None)
             self.coefs = [[-1 / self.tau, 0, 1 / self.tau], [0, 0, 0]]
         elif order == 2:
@@ -1002,6 +1004,7 @@ class PyFly:
                                                            "value_max"]]):
                 self.attitude_states_with_constraints.append(v["name"])
             if v["name"] in self.actuator_states:
+                v["dt"] = self.dt
                 self.state[v["name"]] = ControlVariable(**v)
                 self.actuation.add_state(self.state[v["name"]])
             elif "energy" in v["name"]:
