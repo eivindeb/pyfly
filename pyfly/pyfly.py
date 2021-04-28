@@ -1516,6 +1516,31 @@ class PyFly:
             constraint_exception = try_catch_constraint_exception(constraint_exception, self.state[var_name].set_value, ode_sol[start_i + i], save=save)
 
         self.actuation.set_states(ode_sol[start_i + 9:], save=save)
+        
+    def _set_inertia_matrix(self, Jx=None, Jy=None, Jz=None, Jxz=None):
+        if Jx is None:
+            Jx = self.params["Jx"]
+        if Jy is None:
+            Jy = self.params["Jy"]
+        if Jz is None:
+            Jz = self.params["Jz"]
+        if Jxz is None:
+            Jxz = self.params["Jxz"]
+            
+        self.I = np.array([[Jx, 0, -Jxz],
+                           [0, Jy, 0, ],
+                           [-Jxz, 0, Jz]
+                           ])
+            
+        self.gammas = [self.I[0, 0] * self.I[2, 2] - self.I[0, 2] ** 2]
+        self.gammas.append((np.abs(self.I[0, 2]) * (self.I[0, 0] - self.I[1, 1] + self.I[2, 2])) / self.gammas[0])
+        self.gammas.append((self.I[2, 2] * (self.I[2, 2] - self.I[1, 1]) + self.I[0, 2] ** 2) / self.gammas[0])
+        self.gammas.append(self.I[2, 2] / self.gammas[0])
+        self.gammas.append(np.abs(self.I[0, 2]) / self.gammas[0])
+        self.gammas.append((self.I[2, 2] - self.I[0, 0]) / self.I[1, 1])
+        self.gammas.append(np.abs(self.I[0, 2]) / self.I[1, 1])
+        self.gammas.append(((self.I[0, 0] - self.I[1, 1]) * self.I[0, 0] + self.I[0, 2] ** 2) / self.gammas[0])
+        self.gammas.append(self.I[0, 0] / self.gammas[0])
 
 
 if __name__ == "__main__":
